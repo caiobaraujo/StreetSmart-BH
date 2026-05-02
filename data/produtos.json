@@ -21,7 +21,7 @@
     "climas_desfavoraveis": ["chuva", "frio"],
     "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
     "horarios_pico": [11, 12, 13, 14, 15, 16],
-    "eventos_associados": ["feira", "esporte"],
+    "eventos_associados": ["feira", "esporte", "fluxo"],
     "perecivel": false,
     "peso_mochila": 5
   },
@@ -115,5 +115,61 @@
     "eventos_associados": ["show", "festival", "jogo"],
     "perecivel": false,
     "peso_mochila": 1
+  },
+  "drink pronto latinha": {
+    "categoria": "bebida",
+    "custo": 7.0,
+    "preco_venda": 18.0,
+    "margem": 61.1,
+    "climas_favoraveis": ["limpo", "nublado"],
+    "climas_desfavoraveis": ["chuva"],
+    "dias_favoraveis": [4, 5, 6],
+    "horarios_pico": [14, 15, 16, 17, 18, 19, 20],
+    "eventos_associados": ["show", "festival", "carnaval"],
+    "perecivel": false,
+    "peso_mochila": 6,
+    "nota_mercado": "Drinks superam cerveja no Carnaval BH 2026 — O TEMPO [citation:2]"
+  },
+  "palha italiana doce": {
+    "categoria": "alimento",
+    "custo": 1.5,
+    "preco_venda": 5.0,
+    "margem": 70.0,
+    "climas_favoraveis": ["limpo", "nublado"],
+    "climas_desfavoraveis": ["chuva", "tempestade"],
+    "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
+    "horarios_pico": [14, 15, 16, 17],
+    "eventos_associados": ["fluxo", "feira", "congresso"],
+    "perecivel": false,
+    "peso_mochila": 3,
+    "nota_mercado": "Ambulante vendeu 300/dia na Praça Sete — Exame [citation:6]"
+  },
+  "kit lanche saudavel": {
+    "categoria": "alimento",
+    "custo": 5.0,
+    "preco_venda": 15.0,
+    "margem": 66.7,
+    "climas_favoraveis": ["limpo", "nublado", "garoa"],
+    "climas_desfavoraveis": ["tempestade"],
+    "dias_favoraveis": [0, 1, 2, 3, 4],
+    "horarios_pico": [11, 12, 13],
+    "eventos_associados": ["congresso", "feira"],
+    "perecivel": true,
+    "peso_mochila": 7,
+    "nota_mercado": "Mix Lanches fatura 3× mais com alimentação saudável — Exame [citation:6]"
+  },
+  "adereco carnavalesco": {
+    "categoria": "acessorio",
+    "custo": 2.0,
+    "preco_venda": 10.0,
+    "margem": 80.0,
+    "climas_favoraveis": ["limpo", "nublado"],
+    "climas_desfavoraveis": ["chuva", "tempestade"],
+    "dias_favoraveis": [4, 5, 6],
+    "horarios_pico": [10, 11, 12, 13, 14, 15, 16],
+    "eventos_associados": ["festival", "carnaval"],
+    "perecivel": false,
+    "peso_mochila": 2,
+    "nota_mercado": "Permitido pela PBH em blocos de rua — PBH [citation:10]"
   }
 }

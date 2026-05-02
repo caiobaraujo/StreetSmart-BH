@@ -59,7 +59,8 @@ if st.button("🔍 Descobrir recomendação do dia", use_container_width=True, t
         
         with col_esq:
             st.subheader("📋 Detalhes da Recomendação")
-            st.markdown(f"**🕐 Melhor horário:** {engine._score_hora(rec['produto'], datetime.datetime.now().hour):.0%} de adequação ao horário atual")
+            hora_atual = datetime.datetime.now().hour
+            st.markdown(f"**🕐 Melhor horário:** {engine._score_hora(rec['produto'], hora_atual):.0%} de adequação ao horário atual")
             st.markdown(f"**📍 Local sugerido:** {engine.sugerir_local(rec, clima)}")
             st.markdown(f"**🚚 Fornecedor:** {engine.sugerir_fornecedor(rec['produto'])}")
             st.markdown(f"**💵 Preço de venda:** R$ {rec['preco_venda']:.2f} | **Custo:** R$ {rec['custo']:.2f}")
@@ -72,10 +73,11 @@ if st.button("🔍 Descobrir recomendação do dia", use_container_width=True, t
             st.subheader("🔄 Alternativas")
             if resultado["alternativas"]:
                 for alt in resultado["alternativas"]:
+                    delta = rec["score"] - alt["score"]
                     st.metric(
                         f"{alt['produto'].title()}",
                         f"Score: {alt['score']}/100",
-                        delta=f"-{rec['score'] - alt['score']:.1f} pts"
+                        delta=f"-{delta:.1f} pts"
                     )
             else:
                 st.write("Nenhuma alternativa próxima")
@@ -88,16 +90,17 @@ if st.button("🔍 Descobrir recomendação do dia", use_container_width=True, t
             st.progress(metricas["p_hora"], text=f"Hora: {metricas['p_hora']:.0%}")
             st.progress(metricas["p_evento"], text=f"Evento: {metricas['p_evento']:.0%}")
         
-        # ════ DADOS TÉCNICOS ════
+        # ════ DADOS TÉCNICOS (debug) ════
         with st.expander("🔬 Dados técnicos (debug)"):
             col_d1, col_d2 = st.columns(2)
             with col_d1:
                 st.write("**Clima:**", clima)
-                st.write("**Eventos:**", resultado["eventos"])
+                st.write("**Eventos detectados:**", resultado["eventos"])
             with col_d2:
                 st.write("**Top 3 scores:**")
-                for i, r in enumerate(resultado["recomendacao":"alternativas"][:3]):
-                    if isinstance(r, dict):
-                        st.write(f"{i+1}. {r['produto']}: {r['score']}")
+                # Monta lista com recomendação + alternativas
+                top3 = [rec] + resultado["alternativas"]
+                for i, item in enumerate(top3):
+                    st.write(f"{i+1}. {item['produto'].title()}: {item['score']}/100")
 
 st.caption(f"🕒 Última atualização: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
