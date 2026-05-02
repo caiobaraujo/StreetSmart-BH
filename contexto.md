@@ -12,19 +12,54 @@
 - Coordenadas fixas de BH (-19.9167, -43.9345)
 - Fallback para dados simulados quando a API falha ou chave não configurada
 - Cache de 10 minutos para não estourar limite gratuito
-- `app.py` atualizado: exibe métricas climáticas e recomendação baseada em regras simples:
-  - Chuva → guarda-chuva
-  - Calor (>30°C) → água gelada
-  - Frio (<18°C) → café quente
-  - Nublado → pastel
-  - Limpo → suco natural
-- Sugestão de horário por período (almoço, saída do trabalho) e local adaptado ao clima
-- Sidebar com status da API
-- Expander com dados técnicos brutos (debug)
+- `app.py` atualizado com métricas climáticas e recomendação baseada em regras
+- Sidebar com status da API e expander com dados brutos
 
-## Próximos passos planejados
+## Correção (entre Passo 2 e 3)
 
-- Integrar dados de eventos (Portal de Dados Abertos PBH + detecção em redes sociais)
-- Criar motor de recomendação com pesos estatísticos
-- Adicionar estimativa realista de lucro baseada em custos de fornecedores
-- Sugestão inteligente de localização (fluxo de pessoas)
+- Funções `_sugerir_horario` e `_sugerir_local` movidas para o topo do `app.py`
+- NameError resolvido
+
+## Passo 3 — Motor de Recomendação com Pesos Estatísticos (Data Science)
+
+- Criado `recommendation_engine.py` com classe `RecommendationEngine`
+- Matriz de decisão multi-fatorial com 4 dimensões:
+  1. **Clima** (35%): adequação do produto à condição climática
+  2. **Data** (15%): sazonalidade por dia da semana
+  3. **Hora** (20%): picos de consumo por horário
+  4. **Eventos** (30%): demanda concentrada por tipo de evento
+- Catálogo de 9 produtos em `data/produtos.json` com atributos:
+  - custo, preço de venda, margem
+  - climas favoráveis/desfavoráveis
+  - dias da semana favoráveis
+  - horários de pico
+  - eventos associados
+  - categoria, perecibilidade, peso na mochila
+- Sistema de pontuação normalizada (0-1) por fator:
+  - Clima: match exato ou temperatura como proxy
+  - Data: dias favoráveis com score proporcional
+  - Hora: decaimento gaussiano a partir do pico mais próximo
+  - Evento: match entre tipo de evento e produto
+- Score final = soma ponderada convertida para 0-100
+- Lucro estimado = (preço - custo) × (score/100) × 50 unidades
+- Top 3 produtos com scores comparativos
+- Explicações textuais baseadas no fator de maior influência
+- Sugestão de local por categoria × clima × evento
+- Mapeamento de fornecedores por produto
+- `app.py` refatorado com layout wide, colunas, progress bars por fator
+
+### Eventos (simulação)
+
+- Sábado → Show no Mineirão
+- Domingo → Feira Hippie
+- Quarta/Quinta → Congresso no Expominas
+- (Passo 4 substituirá por API real)
+
+## Próximos passos
+
+- Integrar Portal de Dados Abertos PBH (eventos reais)
+- Coleta de tendências em redes sociais
+- API de fluxo de pedestres (Google Popular Times ou similar)
+- Modelo ML supervisionado para calibrar pesos automaticamente
+- Histórico de vendas do usuário para personalização
+- Módulo de precificação dinâmica

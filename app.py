@@ -1,93 +1,103 @@
 import streamlit as st
-from weather_service import obter_previsao_bh
 import datetime
+from weather_service import obter_previsao_bh
+from recommendation_engine import RecommendationEngine
 
 # ═══════════════════════════════════════════════════
-# FUNÇÕES AUXILIARES (definidas ANTES de usar)
+# INICIALIZAÇÃO (cache para não recarregar o motor a cada clique)
 # ═══════════════════════════════════════════════════
 
-def _sugerir_horario(clima):
-    """Sugere horário baseado na condição climática"""
-    agora = datetime.datetime.now().hour
-    if clima["condicao"] == "chuva":
-        return "Assim que a chuva começar (consulte radar meteorológico)"
-    elif 11 <= agora <= 13:
-        return "11:30 – 13:30 (horário de almoço)"
-    elif 17 <= agora <= 19:
-        return "17:00 – 19:00 (saída do trabalho)"
-    return "10:00 – 16:00 (movimento constante)"
+@st.cache_resource
+def get_engine():
+    return RecommendationEngine()
 
-
-def _sugerir_local(clima):
-    """Sugere local baseado na condição climática"""
-    if clima["condicao"] == "chuva":
-        return "Áreas cobertas: shopping centers, marquises da Praça Sete"
-    elif clima["temperatura"] > 30:
-        return "Praças com sombra: Praça da Liberdade, Parque Municipal"
-    return "Praça Sete – Centro (fluxo tradicional)"
-
+engine = get_engine()
 
 # ═══════════════════════════════════════════════════
 # CONFIGURAÇÃO DA PÁGINA
 # ═══════════════════════════════════════════════════
 
-st.set_page_config(page_title="StreetSmart BH", page_icon="🛒")
+st.set_page_config(page_title="StreetSmart BH", page_icon="🛒", layout="wide")
 st.title("📊 StreetSmart BH – O que vender hoje em Belo Horizonte?")
 
-# Sidebar com informações de debug
+# Sidebar
 with st.sidebar:
-    st.header("⚙️ Status do sistema")
-    clima_debug = obter_previsao_bh()
-    st.write("API OpenWeather:", "🟢 Conectada" if clima_debug else "🔴 Falha")
-    st.write("Atualizado:", datetime.datetime.now().strftime("%H:%M:%S"))
+    st.header("⚙️ Configurações")
+    clima_preview = obter_previsao_bh()
+    if clima_preview:
+        st.metric("🌡️ Temperatura", f"{clima_preview['temperatura']:.1f}°C")
+        st.metric("🌧️ Condição", clima_preview['descricao'].capitalize())
+    st.divider()
+    st.caption("Motor de recomendação v2.0")
+    st.caption("Pesos: Clima 35% | Data 15% | Hora 20% | Eventos 30%")
 
 # ═══════════════════════════════════════════════════
-# BOTÃO PRINCIPAL E LÓGICA DE RECOMENDAÇÃO
+# BOTÃO PRINCIPAL
 # ═══════════════════════════════════════════════════
 
-if st.button("🔍 Descobrir recomendação do dia", use_container_width=True):
-    clima = obter_previsao_bh()
-
-    if clima is None:
-        st.error("❌ Não foi possível obter a previsão do tempo. Verifique sua conexão e a chave da API.")
+if st.button("🔍 Descobrir recomendação do dia", use_container_width=True, type="primary"):
+    with st.spinner("🧠 Analisando clima, eventos, dia da semana e horário..."):
+        resultado = engine.calcular_recomendacao()
+    
+    if resultado is None or resultado["recomendacao"] is None:
+        st.error("❌ Não foi possível gerar a recomendação.")
     else:
-        # Mostra dados climáticos
-        col1, col2, col3 = st.columns(3)
-        col1.metric("🌡️ Temperatura", f"{clima['temperatura']:.1f}°C")
-        col2.metric("💧 Umidade", f"{clima['umidade']}%")
-        col3.metric("🌧️ Chuva", f"{clima['chuva_mm']:.1f} mm")
-
-        st.info(f"**Condição atual:** {clima['descricao'].capitalize()}")
-
-        # Lógica de recomendação baseada no clima (simples, será expandida)
-        st.subheader("📦 Recomendação do Sistema")
-
-        if clima["condicao"] in ["chuva", "tempestade", "garoa"]:
-            produto = "Guarda-chuva compacto"
-            explicacao = "Precipitação detectada — alta demanda por proteção contra chuva"
-
-        elif clima["temperatura"] > 30:
-            produto = "Água mineral gelada (500ml)"
-            explicacao = "Temperatura acima de 30°C — hidratação é prioridade"
-
-        elif clima["temperatura"] < 18:
-            produto = "Café quente (200ml)"
-            explicacao = "Temperatura baixa para BH — bebidas quentes têm alta conversão"
-
-        elif clima["condicao"] == "nublado":
-            produto = "Pastel frito na hora"
-            explicacao = "Clima ameno e nublado — alimentos de rua têm apelo emocional"
-
-        else:
-            produto = "Suco natural (laranja)"
-            explicacao = "Dia limpo — bebidas refrescantes são a melhor escolha"
-
-        st.success(f"**{produto}**")
-        st.markdown(f"*Por quê:* {explicacao}")
-        st.markdown(f"**Horário ideal:** {_sugerir_horario(clima)}")
-        st.markdown(f"**Local:** {_sugerir_local(clima)}")
-
+        rec = resultado["recomendacao"]
+        clima = resultado["clima"]
+        
+        # ════ CABEÇALHO COM MÉTRICAS ════
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("📦 Produto Recomendado", rec["produto"].title())
+        col2.metric("📊 Score Final", f"{rec['score']}/100")
+        col3.metric("💰 Lucro Estimado", f"R$ {rec['lucro_estimado']:.2f}")
+        col4.metric("📈 Margem", f"{rec['margem']:.1f}%")
+        
+        st.divider()
+        
+        # ════ DETALHES ════
+        col_esq, col_dir = st.columns([2, 1])
+        
+        with col_esq:
+            st.subheader("📋 Detalhes da Recomendação")
+            st.markdown(f"**🕐 Melhor horário:** {engine._score_hora(rec['produto'], datetime.datetime.now().hour):.0%} de adequação ao horário atual")
+            st.markdown(f"**📍 Local sugerido:** {engine.sugerir_local(rec, clima)}")
+            st.markdown(f"**🚚 Fornecedor:** {engine.sugerir_fornecedor(rec['produto'])}")
+            st.markdown(f"**💵 Preço de venda:** R$ {rec['preco_venda']:.2f} | **Custo:** R$ {rec['custo']:.2f}")
+            
+            st.subheader("🧠 Por que esta é a melhor escolha?")
+            for exp in resultado["explicacoes"]:
+                st.markdown(f"- {exp}")
+        
+        with col_dir:
+            st.subheader("🔄 Alternativas")
+            if resultado["alternativas"]:
+                for alt in resultado["alternativas"]:
+                    st.metric(
+                        f"{alt['produto'].title()}",
+                        f"Score: {alt['score']}/100",
+                        delta=f"-{rec['score'] - alt['score']:.1f} pts"
+                    )
+            else:
+                st.write("Nenhuma alternativa próxima")
+            
+            st.divider()
+            st.subheader("📊 Score por Fator")
+            metricas = rec["metricas"]
+            st.progress(metricas["p_clima"], text=f"Clima: {metricas['p_clima']:.0%}")
+            st.progress(metricas["p_data"], text=f"Data: {metricas['p_data']:.0%}")
+            st.progress(metricas["p_hora"], text=f"Hora: {metricas['p_hora']:.0%}")
+            st.progress(metricas["p_evento"], text=f"Evento: {metricas['p_evento']:.0%}")
+        
+        # ════ DADOS TÉCNICOS ════
         with st.expander("🔬 Dados técnicos (debug)"):
-            st.json(clima)
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                st.write("**Clima:**", clima)
+                st.write("**Eventos:**", resultado["eventos"])
+            with col_d2:
+                st.write("**Top 3 scores:**")
+                for i, r in enumerate(resultado["recomendacao":"alternativas"][:3]):
+                    if isinstance(r, dict):
+                        st.write(f"{i+1}. {r['produto']}: {r['score']}")
 
-st.caption(f"Última atualização: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+st.caption(f"🕒 Última atualização: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
