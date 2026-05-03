@@ -1,175 +1,195 @@
 {
   "guarda-chuva compacto": {
     "categoria": "protecao",
+    "preco_venda": 25.0,
     "custo": 8.0,
-    "preco_venda": 20.0,
-    "margem": 60.0,
+    "margem": 68.0,
     "climas_favoraveis": ["chuva", "garoa", "tempestade"],
     "climas_desfavoraveis": ["limpo"],
     "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
-    "horarios_pico": [7, 8, 17, 18],
-    "eventos_associados": ["show", "festival"],
-    "perecivel": false,
-    "peso_mochila": 2
+    "horarios_pico": [7, 8, 16, 17, 18],
+    "eventos_associados": ["evento", "show musical", "teatro ou comédia"],
+    "nota_mercado": "Melhor produto para dias chuvosos. Margem de 68%."
   },
   "agua mineral gelada 500ml": {
     "categoria": "bebida",
+    "preco_venda": 4.0,
     "custo": 1.2,
-    "preco_venda": 5.0,
-    "margem": 76.0,
-    "climas_favoraveis": ["limpo", "nublado"],
-    "climas_desfavoraveis": ["chuva", "frio"],
-    "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
-    "horarios_pico": [11, 12, 13, 14, 15, 16],
-    "eventos_associados": ["feira", "esporte", "fluxo"],
-    "perecivel": false,
-    "peso_mochila": 5
-  },
-  "cafe quente 200ml": {
-    "categoria": "bebida",
-    "custo": 2.0,
-    "preco_venda": 6.0,
-    "margem": 66.7,
-    "climas_favoraveis": ["nublado", "garoa", "neblina"],
-    "climas_desfavoraveis": ["limpo"],
-    "dias_favoraveis": [0, 1, 2, 3, 4],
-    "horarios_pico": [7, 8, 9, 17, 18, 19],
-    "eventos_associados": ["congresso", "feira"],
-    "perecivel": true,
-    "peso_mochila": 4
-  },
-  "pastel frito na hora": {
-    "categoria": "alimento",
-    "custo": 3.5,
-    "preco_venda": 8.0,
-    "margem": 56.3,
-    "climas_favoraveis": ["limpo", "nublado"],
-    "climas_desfavoraveis": ["chuva", "tempestade"],
-    "dias_favoraveis": [4, 5, 6],
-    "horarios_pico": [11, 12, 13, 17, 18, 19],
-    "eventos_associados": ["feira", "show", "jogo"],
-    "perecivel": true,
-    "peso_mochila": 6
-  },
-  "suco natural laranja 300ml": {
-    "categoria": "bebida",
-    "custo": 3.0,
-    "preco_venda": 8.0,
-    "margem": 62.5,
-    "climas_favoraveis": ["limpo"],
-    "climas_desfavoraveis": ["chuva", "frio"],
-    "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
-    "horarios_pico": [10, 11, 12, 13, 14, 15],
-    "eventos_associados": ["feira", "esporte"],
-    "perecivel": true,
-    "peso_mochila": 5
-  },
-  "oculos de sol": {
-    "categoria": "acessorio",
-    "custo": 7.0,
-    "preco_venda": 25.0,
-    "margem": 72.0,
-    "climas_favoraveis": ["limpo"],
-    "climas_desfavoraveis": ["chuva", "nublado", "neblina"],
-    "dias_favoraveis": [5, 6],
-    "horarios_pico": [10, 11, 12, 13, 14, 15, 16],
-    "eventos_associados": ["show", "festival", "esporte"],
-    "perecivel": false,
-    "peso_mochila": 1
-  },
-  "carregador portatil": {
-    "categoria": "eletronico",
-    "custo": 25.0,
-    "preco_venda": 60.0,
-    "margem": 58.3,
-    "climas_favoraveis": ["limpo", "nublado", "chuva"],
-    "climas_desfavoraveis": [],
-    "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
-    "horarios_pico": [9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-    "eventos_associados": ["congresso", "festival"],
-    "perecivel": false,
-    "peso_mochila": 1
-  },
-  "cerveja artesanal lata": {
-    "categoria": "bebida",
-    "custo": 6.0,
-    "preco_venda": 14.0,
-    "margem": 57.1,
-    "climas_favoraveis": ["limpo", "nublado"],
-    "climas_desfavoraveis": ["chuva"],
-    "dias_favoraveis": [4, 5, 6],
-    "horarios_pico": [17, 18, 19, 20, 21],
-    "eventos_associados": ["show", "festival", "jogo"],
-    "perecivel": false,
-    "peso_mochila": 8
-  },
-  "capa de chuva descartavel": {
-    "categoria": "protecao",
-    "custo": 3.5,
-    "preco_venda": 12.0,
-    "margem": 70.8,
-    "climas_favoraveis": ["chuva", "garoa", "tempestade"],
-    "climas_desfavoraveis": ["limpo"],
-    "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
-    "horarios_pico": [7, 8, 17, 18],
-    "eventos_associados": ["show", "festival", "jogo"],
-    "perecivel": false,
-    "peso_mochila": 1
-  },
-  "drink pronto latinha": {
-    "categoria": "bebida",
-    "custo": 7.0,
-    "preco_venda": 18.0,
-    "margem": 61.1,
-    "climas_favoraveis": ["limpo", "nublado"],
-    "climas_desfavoraveis": ["chuva"],
-    "dias_favoraveis": [4, 5, 6],
-    "horarios_pico": [14, 15, 16, 17, 18, 19, 20],
-    "eventos_associados": ["show", "festival", "carnaval"],
-    "perecivel": false,
-    "peso_mochila": 6,
-    "nota_mercado": "Drinks superam cerveja no Carnaval BH 2026 — O TEMPO [citation:2]"
-  },
-  "palha italiana doce": {
-    "categoria": "alimento",
-    "custo": 1.5,
-    "preco_venda": 5.0,
     "margem": 70.0,
     "climas_favoraveis": ["limpo", "nublado"],
     "climas_desfavoraveis": ["chuva", "tempestade"],
     "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
-    "horarios_pico": [14, 15, 16, 17],
-    "eventos_associados": ["fluxo", "feira", "congresso"],
-    "perecivel": false,
-    "peso_mochila": 3,
-    "nota_mercado": "Ambulante vendeu 300/dia na Praça Sete — Exame [citation:6]"
+    "horarios_pico": [10, 11, 12, 13, 14, 15, 16, 17],
+    "eventos_associados": [
+      "evento esportivo",
+      "carnaval de rua",
+      "festa universitária",
+      "show musical"
+    ],
+    "nota_mercado": "Alta demanda em eventos esportivos e dias quentes."
   },
-  "kit lanche saudavel": {
+  "cafe quente 200ml": {
+    "categoria": "bebida",
+    "preco_venda": 5.0,
+    "custo": 2.0,
+    "margem": 60.0,
+    "climas_favoraveis": ["chuva", "garoa", "nublado"],
+    "climas_desfavoraveis": ["limpo"],
+    "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
+    "horarios_pico": [6, 7, 8, 9, 18, 19, 20],
+    "eventos_associados": ["congresso corporativo", "evento religioso"],
+    "nota_mercado": "Boa saída em manhãs frias e eventos corporativos."
+  },
+  "pastel frito na hora": {
     "categoria": "alimento",
-    "custo": 5.0,
-    "preco_venda": 15.0,
-    "margem": 66.7,
+    "preco_venda": 8.0,
+    "custo": 3.5,
+    "margem": 56.3,
     "climas_favoraveis": ["limpo", "nublado", "garoa"],
     "climas_desfavoraveis": ["tempestade"],
-    "dias_favoraveis": [0, 1, 2, 3, 4],
-    "horarios_pico": [11, 12, 13],
-    "eventos_associados": ["congresso", "feira"],
-    "perecivel": true,
-    "peso_mochila": 7,
-    "nota_mercado": "Mix Lanches fatura 3× mais com alimentação saudável — Exame [citation:6]"
+    "dias_favoraveis": [5, 6],
+    "horarios_pico": [10, 11, 12, 13, 17, 18, 19],
+    "eventos_associados": [
+      "feira de artesanato",
+      "feira gastronômica",
+      "evento familiar"
+    ],
+    "nota_mercado": "Campeão de vendas na Feira Hippie aos domingos."
   },
-  "adereco carnavalesco": {
+  "suco natural laranja 300ml": {
+    "categoria": "bebida",
+    "preco_venda": 7.0,
+    "custo": 3.0,
+    "margem": 57.1,
+    "climas_favoraveis": ["limpo", "nublado"],
+    "climas_desfavoraveis": ["chuva", "tempestade"],
+    "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
+    "horarios_pico": [9, 10, 11, 12, 14, 15, 16],
+    "eventos_associados": [
+      "feira de artesanato",
+      "evento familiar",
+      "evento infantil"
+    ],
+    "nota_mercado": "Alternativa saudável. Boa em eventos diurnos."
+  },
+  "oculos de sol": {
     "categoria": "acessorio",
-    "custo": 2.0,
+    "preco_venda": 20.0,
+    "custo": 7.0,
+    "margem": 65.0,
+    "climas_favoraveis": ["limpo"],
+    "climas_desfavoraveis": ["chuva", "nublado", "tempestade"],
+    "dias_favoraveis": [5, 6],
+    "horarios_pico": [10, 11, 12, 13, 14, 15, 16],
+    "eventos_associados": [
+      "carnaval de rua",
+      "show musical",
+      "evento esportivo"
+    ],
+    "nota_mercado": "Só funciona com sol forte. Altamente sazonal."
+  },
+  "carregador portatil": {
+    "categoria": "eletronico",
+    "preco_venda": 50.0,
+    "custo": 25.0,
+    "margem": 50.0,
+    "climas_favoraveis": ["limpo", "nublado", "chuva", "garoa"],
+    "climas_desfavoraveis": [],
+    "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
+    "horarios_pico": [14, 15, 16, 17, 18, 19, 20],
+    "eventos_associados": [
+      "congresso corporativo",
+      "festa universitária",
+      "show musical"
+    ],
+    "nota_mercado": "Alta margem. Demanda em eventos longos."
+  },
+  "cerveja artesanal lata": {
+    "categoria": "bebida",
+    "preco_venda": 12.0,
+    "custo": 6.0,
+    "margem": 50.0,
+    "climas_favoraveis": ["limpo", "nublado"],
+    "climas_desfavoraveis": ["tempestade"],
+    "dias_favoraveis": [4, 5, 6],
+    "horarios_pico": [17, 18, 19, 20, 21, 22],
+    "eventos_associados": [
+      "carnaval de rua",
+      "show musical",
+      "festa universitária"
+    ],
+    "nota_mercado": "Carnaval: faturamento de R$ 3k/dia."
+  },
+  "capa de chuva descartavel": {
+    "categoria": "protecao",
     "preco_venda": 10.0,
-    "margem": 80.0,
+    "custo": 3.5,
+    "margem": 65.0,
+    "climas_favoraveis": ["chuva", "garoa", "tempestade"],
+    "climas_desfavoraveis": ["limpo"],
+    "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
+    "horarios_pico": [7, 8, 16, 17, 18],
+    "eventos_associados": [
+      "show musical",
+      "evento esportivo",
+      "carnaval de rua"
+    ],
+    "nota_mercado": "Substituto do guarda-chuva. Mais barato, mesma margem."
+  },
+  "drink pronto latinha": {
+    "categoria": "bebida",
+    "preco_venda": 15.0,
+    "custo": 7.0,
+    "margem": 53.3,
     "climas_favoraveis": ["limpo", "nublado"],
     "climas_desfavoraveis": ["chuva", "tempestade"],
     "dias_favoraveis": [4, 5, 6],
-    "horarios_pico": [10, 11, 12, 13, 14, 15, 16],
-    "eventos_associados": ["festival", "carnaval"],
-    "perecivel": false,
-    "peso_mochila": 2,
-    "nota_mercado": "Permitido pela PBH em blocos de rua — PBH [citation:10]"
+    "horarios_pico": [18, 19, 20, 21, 22, 23],
+    "eventos_associados": [
+      "carnaval de rua",
+      "festa universitária",
+      "show musical"
+    ],
+    "nota_mercado": "Sucesso no Carnaval de BH. Margem de 53%."
+  },
+  "palha italiana doce": {
+    "categoria": "alimento",
+    "preco_venda": 5.0,
+    "custo": 1.5,
+    "margem": 70.0,
+    "climas_favoraveis": ["limpo", "nublado", "garoa"],
+    "climas_desfavoraveis": ["chuva", "tempestade"],
+    "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
+    "horarios_pico": [10, 11, 12, 14, 15, 16, 17],
+    "eventos_associados": [
+      "feira de artesanato",
+      "feira gastronômica",
+      "evento familiar"
+    ],
+    "nota_mercado": "300 unidades/dia na Praça Sete."
+  },
+  "kit lanche saudavel": {
+    "categoria": "alimento",
+    "preco_venda": 12.0,
+    "custo": 5.0,
+    "margem": 58.3,
+    "climas_favoraveis": ["limpo", "nublado"],
+    "climas_desfavoraveis": ["chuva", "tempestade"],
+    "dias_favoraveis": [0, 1, 2, 3, 4],
+    "horarios_pico": [10, 11, 12, 13],
+    "eventos_associados": ["congresso corporativo", "evento religioso"],
+    "nota_mercado": "3x faturamento em eventos corporativos."
+  },
+  "adereco carnavalesco": {
+    "categoria": "acessorio",
+    "preco_venda": 8.0,
+    "custo": 2.0,
+    "margem": 75.0,
+    "climas_favoraveis": ["limpo", "nublado", "chuva", "garoa"],
+    "climas_desfavoraveis": [],
+    "dias_favoraveis": [4, 5, 6],
+    "horarios_pico": [14, 15, 16, 17, 18, 19, 20],
+    "eventos_associados": ["carnaval de rua"],
+    "nota_mercado": "Carnaval: produto oficial permitido pela PBH."
   }
 }

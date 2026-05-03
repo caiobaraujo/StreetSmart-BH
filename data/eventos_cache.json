@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-05-02T15:30:38.178654",
+  "eventos": [
+    {
+      "nome": "Blocos de rua / Eventos Savassi",
+      "tipo": "festival",
+      "local": "Savassi - Região Centro-Sul",
+      "data": "2026-05-02",
+      "fonte": "padrao_bh",
+      "url": ""
+    },
+    {
+      "nome": "Fluxo comercial Praça Sete",
+      "tipo": "fluxo",
+      "local": "Praça Sete - Centro",
+      "data": "2026-05-02",
+      "fonte": "padrao_bh",
+      "url": ""
+    }
+  ]
+}
