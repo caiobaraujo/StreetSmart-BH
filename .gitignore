@@ -3,4 +3,4 @@ __pycache__/
 .env
 models/
 *.pyc
-data/eventos_cache.json
+data/eventos_cache.jsoncontext/contexto_ia.txt
