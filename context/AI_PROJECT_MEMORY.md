@@ -19,7 +19,7 @@ The end user is a local street vendor or someone simulating that workflow. The p
 - `engines/recommendation_engine.py`
   Main orchestration layer. Loads products, events, and the XGBoost model; computes hybrid recommendation scores; returns the payload used by the UI. It now supports small constructor-level dependency injection points for testing: `weather_provider`, `event_provider`, `nlp_classifier`, `now_provider`, and `model`.
 - `engines/app_support.py`
-  Small helper module for app-facing data contracts. Handles feedback CSV persistence and lightweight recommendation payload validation.
+  Small helper module for app-facing data contracts. Handles feedback CSV persistence and the canonical recommendation payload validation helpers used by the app and tests.
 - `train_model.py`
   Generates synthetic training data and trains `models/xgboost_model.json`.
 - `data/`
@@ -47,6 +47,12 @@ Expected top-level result shape:
 
 For deterministic tests, pass explicit providers into `RecommendationEngine(...)` and/or pass a `clima` payload directly into `calcular_recomendacao(clima=...)`. This is the preferred mock strategy over patching external APIs.
 
+Canonical validation lives in `engines/app_support.py`:
+
+- `validate_recommendation_payload(payload) -> tuple[bool, list[str]]`
+- `assert_recommendation_payload(payload) -> None`
+- `get_recommendation_contract_fields() -> dict`
+
 ### `resultado["recomendacao"]`
 
 Required fields:
@@ -62,6 +68,23 @@ Required fields:
 - `metricas`
 
 `metricas` is expected to be a dictionary used by the Streamlit progress bars.
+Current canonical metric keys are:
+
+- `p_clima`
+- `p_data`
+- `p_hora`
+- `p_evento`
+- `p_ml`
+
+Metric values are expected to be numeric and within the inclusive range `[0, 1]`.
+
+### `resultado["alternativas"]`
+
+- `alternativas` must be a list.
+- Each alternative must contain at least:
+  - `produto`
+  - `score`
+- In practice the engine currently returns alternative entries with the same rich structure as the main recommendation, but the UI only depends on `produto` and `score`.
 
 ### Climate payload
 
@@ -104,6 +127,7 @@ Common additional fields currently returned by `weather_service`:
 - NLP model loading is optional at runtime from a stability perspective. If the Hugging Face model fails to download or initialize, event classification should return a safe neutral result instead of crashing the app.
 - The XGBoost model may be missing or fail during prediction. That must not crash the UI; the engine should continue with fallback scoring.
 - External APIs are unreliable during local development and CI-like environments. Future work should assume offline or DNS-restricted execution is common.
+- `app.py` must validate the recommendation payload before storing or rendering it. If invalid, it should show a user-friendly error plus development-facing field diagnostics instead of crashing with a nested-key lookup error.
 
 ## Testing Strategy
 
@@ -120,6 +144,7 @@ Common additional fields currently returned by `weather_service`:
 - Preserve Portuguese UX copy unless the task explicitly asks for language changes.
 - Prefer robust fallbacks over hard crashes.
 - When changing architecture, core behavior, or data contracts, update this file in the same task.
+- If the recommendation payload changes, update `engines/app_support.py`, the related tests, and this memory file together in the same change.
 
 ## Current Known Risks / TODOs
 

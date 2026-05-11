@@ -8,7 +8,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parent))
 
 from engines.recommendation_engine import RecommendationEngine
-from engines.app_support import is_valid_recommendation_result, save_feedback_csv
+from engines.app_support import save_feedback_csv, validate_recommendation_payload
 from engines.weather_service import obter_previsao_bh
 
 
@@ -32,11 +32,13 @@ def _executar_recomendacao(engine):
         st.exception(exc)
         return
 
-    if not is_valid_recommendation_result(resultado):
+    valido, erros = validate_recommendation_payload(resultado)
+    if not valido:
         st.session_state.resultado_atual = None
         st.session_state.recomendacao_ativa = False
         st.session_state.feedback_enviado = False
         st.error("O motor retornou uma resposta inválida. Verifique os logs e dependências do projeto.")
+        st.code("\n".join(erros))
         return
 
     st.session_state.resultado_atual = resultado

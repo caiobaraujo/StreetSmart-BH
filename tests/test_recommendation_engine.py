@@ -1,6 +1,6 @@
 import datetime
 
-from engines.app_support import is_valid_recommendation_result
+from engines.app_support import assert_recommendation_payload, validate_recommendation_payload
 from engines.recommendation_engine import RecommendationEngine
 
 
@@ -56,7 +56,7 @@ def test_calcular_recomendacao_returns_expected_payload_structure():
 
     resultado = engine.calcular_recomendacao()
 
-    assert is_valid_recommendation_result(resultado) is True
+    assert_recommendation_payload(resultado)
     assert set(resultado.keys()) == {
         "recomendacao",
         "alternativas",
@@ -156,7 +156,9 @@ def test_calcular_recomendacao_returns_payload_when_ml_prediction_fails():
 
     resultado = engine.calcular_recomendacao()
 
-    assert is_valid_recommendation_result(resultado) is True
+    valido, erros = validate_recommendation_payload(resultado)
+    assert valido is True
+    assert erros == []
     assert resultado["recomendacao"]["produto"] in {
         "guarda-chuva compacto",
         "capa de chuva descartavel",

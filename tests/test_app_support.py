@@ -2,8 +2,11 @@ import csv
 
 from engines.app_support import (
     FEEDBACK_COLUMNS,
+    assert_recommendation_payload,
+    get_recommendation_contract_fields,
     is_valid_recommendation_result,
     save_feedback_csv,
+    validate_recommendation_payload,
 )
 
 
@@ -67,3 +70,67 @@ def test_is_valid_recommendation_result_rejects_missing_nested_fields():
     del resultado["recomendacao"]["metricas"]
 
     assert is_valid_recommendation_result(resultado) is False
+
+
+def test_validate_recommendation_payload_returns_no_errors_for_valid_payload():
+    valido, erros = validate_recommendation_payload(_sample_result())
+
+    assert valido is True
+    assert erros == []
+
+
+def test_validate_recommendation_payload_reports_missing_top_level_field():
+    resultado = _sample_result()
+    del resultado["clima"]
+
+    valido, erros = validate_recommendation_payload(resultado)
+
+    assert valido is False
+    assert "missing top-level field: clima" in erros
+
+
+def test_validate_recommendation_payload_reports_missing_recommendation_field():
+    resultado = _sample_result()
+    del resultado["recomendacao"]["produto"]
+
+    valido, erros = validate_recommendation_payload(resultado)
+
+    assert valido is False
+    assert "missing recommendation field: recomendacao.produto" in erros
+
+
+def test_validate_recommendation_payload_rejects_invalid_metric_value():
+    resultado = _sample_result()
+    resultado["recomendacao"]["metricas"]["p_clima"] = 1.2
+
+    valido, erros = validate_recommendation_payload(resultado)
+
+    assert valido is False
+    assert "metric value out of range [0, 1]: recomendacao.metricas.p_clima=1.2" in erros
+
+
+def test_assert_recommendation_payload_raises_useful_error():
+    resultado = _sample_result()
+    del resultado["alternativas"]
+
+    try:
+        assert_recommendation_payload(resultado)
+    except ValueError as exc:
+        assert "missing top-level field: alternativas" in str(exc)
+    else:
+        raise AssertionError("assert_recommendation_payload should have raised ValueError")
+
+
+def test_get_recommendation_contract_fields_exposes_canonical_lists():
+    contrato = get_recommendation_contract_fields()
+
+    assert contrato["resultado"] == [
+        "recomendacao",
+        "alternativas",
+        "explicacoes",
+        "clima",
+        "eventos",
+        "hora_consulta",
+        "data_consulta",
+    ]
+    assert contrato["metricas"] == ["p_clima", "p_data", "p_hora", "p_evento", "p_ml"]
