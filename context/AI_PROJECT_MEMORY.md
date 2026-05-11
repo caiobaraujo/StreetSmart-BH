@@ -17,7 +17,7 @@ The end user is a local street vendor or someone simulating that workflow. The p
 - `engines/nlp_classifier.py`
   Uses Hugging Face `facebook/bart-large-mnli` for zero-shot event classification. Must degrade safely if model loading or inference fails.
 - `engines/recommendation_engine.py`
-  Main orchestration layer. Loads products, events, and the XGBoost model; computes hybrid recommendation scores; returns the payload used by the UI.
+  Main orchestration layer. Loads products, events, and the XGBoost model; computes hybrid recommendation scores; returns the payload used by the UI. It now supports small constructor-level dependency injection points for testing: `weather_provider`, `event_provider`, `nlp_classifier`, `now_provider`, and `model`.
 - `engines/app_support.py`
   Small helper module for app-facing data contracts. Handles feedback CSV persistence and lightweight recommendation payload validation.
 - `train_model.py`
@@ -44,6 +44,8 @@ Expected top-level result shape:
     "data_consulta": "DD/MM/YYYY",
 }
 ```
+
+For deterministic tests, pass explicit providers into `RecommendationEngine(...)` and/or pass a `clima` payload directly into `calcular_recomendacao(clima=...)`. This is the preferred mock strategy over patching external APIs.
 
 ### `resultado["recomendacao"]`
 
@@ -102,6 +104,13 @@ Common additional fields currently returned by `weather_service`:
 - NLP model loading is optional at runtime from a stability perspective. If the Hugging Face model fails to download or initialize, event classification should return a safe neutral result instead of crashing the app.
 - The XGBoost model may be missing or fail during prediction. That must not crash the UI; the engine should continue with fallback scoring.
 - External APIs are unreliable during local development and CI-like environments. Future work should assume offline or DNS-restricted execution is common.
+
+## Testing Strategy
+
+- Unit tests must avoid live weather/event APIs, Hugging Face downloads, and network access.
+- `RecommendationEngine` should be tested with injected fake providers rather than with global monkeypatching whenever practical.
+- Deterministic recommendation tests should freeze time with `now_provider`, inject fixed event lists with `event_provider`, and use either `model=None` or a fake model object.
+- Ranking tests should assert stable product outcomes or top-tier membership in realistic scenarios, but should avoid brittle exact-score assertions unless the inputs are fully controlled.
 
 ## Development Rules for Future Codex Tasks
 

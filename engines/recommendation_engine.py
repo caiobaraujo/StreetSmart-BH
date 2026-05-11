@@ -11,17 +11,31 @@ from engines.event_service import obter_todos_eventos
 from engines.nlp_classifier import classificar_evento
 import xgboost as xgb
 
+_DEFAULT_MODEL = object()
+
 
 class RecommendationEngine:
 
-    def __init__(self, produtos_path="data/produtos.json"):
+    def __init__(
+        self,
+        produtos_path="data/produtos.json",
+        weather_provider=obter_previsao_bh,
+        event_provider=obter_todos_eventos,
+        nlp_classifier=classificar_evento,
+        now_provider=None,
+        model=_DEFAULT_MODEL,
+    ):
         self.produtos = self._carregar_produtos(produtos_path)
         self.pesos = {
             "clima": 0.30, "data": 0.10, "hora": 0.15,
             "evento": 0.25, "ml": 0.20
         }
-        self.eventos_hoje = obter_todos_eventos()
-        self.model = self._carregar_modelo_ml()
+        self.weather_provider = weather_provider
+        self.event_provider = event_provider
+        self.nlp_classifier = nlp_classifier
+        self.now_provider = now_provider or datetime.datetime.now
+        self.eventos_hoje = self.event_provider()
+        self.model = self._carregar_modelo_ml() if model is _DEFAULT_MODEL else model
 
     def _carregar_produtos(self, path):
         arquivo = Path(path)
@@ -43,7 +57,7 @@ class RecommendationEngine:
     def _classificar_eventos_com_nlp(self):
         for evento in self.eventos_hoje:
             if "tipo_nlp" not in evento:
-                resultado = classificar_evento(evento.get("nome", ""))
+                resultado = self.nlp_classifier(evento.get("nome", ""))
                 evento["tipo_nlp"] = resultado["tipo"]
                 evento["confianca_nlp"] = resultado["confianca"]
 
@@ -102,9 +116,9 @@ class RecommendationEngine:
             return 0.5
 
     def calcular_recomendacao(self, clima=None):
-        if clima is None: clima = obter_previsao_bh()
+        if clima is None: clima = self.weather_provider()
         self._classificar_eventos_com_nlp()
-        agora = datetime.datetime.now()
+        agora = self.now_provider()
         hora = agora.hour
         data = agora.date()
         resultados = []
