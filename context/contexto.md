@@ -1,5 +1,7 @@
 # StreetSmart BH — Histórico do Projeto
 
+> Nota: o arquivo `context/AI_PROJECT_MEMORY.md` é a referência mais atual para continuidade com agentes de IA/Codex. Este arquivo permanece como histórico resumido do projeto.
+
 ## Versão 3.0 — Arquitetura Híbrida Inteligente
 
 ### 📂 Estrutura Atual

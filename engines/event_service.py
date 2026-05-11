@@ -191,11 +191,14 @@ def _classificar_evento(nome):
 def _carregar_cache():
     """Carrega cache do disco se ainda válido"""
     if CACHE_FILE.exists():
-        with open(CACHE_FILE, "r") as f:
-            cache = json.load(f)
-        data_cache = datetime.datetime.fromisoformat(cache["timestamp"])
-        if (datetime.datetime.now() - data_cache).seconds < CACHE_HORAS * 3600:
-            return cache.get("eventos", [])
+        try:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                cache = json.load(f)
+            data_cache = datetime.datetime.fromisoformat(cache["timestamp"])
+            if (datetime.datetime.now() - data_cache).seconds < CACHE_HORAS * 3600:
+                return cache.get("eventos", [])
+        except Exception as e:
+            print(f"[event_service] Cache inválido, ignorando arquivo local: {e}")
     return None
 
 

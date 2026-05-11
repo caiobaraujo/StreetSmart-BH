@@ -44,10 +44,14 @@ def classificar_evento(nome_evento: str) -> dict:
     if not nome_evento or len(nome_evento) < 3:
         return {"tipo": "evento", "confianca": 0.0}
 
-    model = _carregar_modelo()
-    resultado = model(nome_evento, CATEGORIAS)
-    return {
-        "tipo": resultado["labels"][0],
-        "confianca": resultado["scores"][0],
-        "alternativas": list(zip(resultado["labels"][1:3], resultado["scores"][1:3]))
-    }
+    try:
+        model = _carregar_modelo()
+        resultado = model(nome_evento, CATEGORIAS)
+        return {
+            "tipo": resultado["labels"][0],
+            "confianca": resultado["scores"][0],
+            "alternativas": list(zip(resultado["labels"][1:3], resultado["scores"][1:3]))
+        }
+    except Exception as e:
+        print(f"[nlp] Erro ao classificar evento '{nome_evento}': {e}")
+        return {"tipo": "evento", "confianca": 0.0, "alternativas": []}

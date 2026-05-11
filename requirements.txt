@@ -8,3 +8,4 @@ joblib
 python-dotenv
 transformers
 torch
+pytest

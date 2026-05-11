@@ -98,6 +98,7 @@ class RecommendationEngine:
             pred = self.model.predict(xgb.DMatrix(features))[0]
             return min(float(pred) / 50.0, 1.0)
         except Exception as e:
+            print(f"[engine] Erro ao calcular score ML para '{produto_nome}': {e}")
             return 0.5
 
     def calcular_recomendacao(self, clima=None):
