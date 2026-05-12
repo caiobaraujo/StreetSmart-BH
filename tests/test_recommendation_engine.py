@@ -4,7 +4,7 @@ import json
 import pytest
 
 from engines.app_support import assert_recommendation_payload, validate_recommendation_payload
-from engines.recommendation_engine import RecommendationEngine
+from engines.recommendation_engine import ProductCatalogError, RecommendationEngine
 
 
 class ExplodingModel:
@@ -42,6 +42,26 @@ def _engine_for_test(*, now_dt, events=None, model=None, weather=None, nlp_resul
 
 def _joined_explanations(resultado):
     return " ".join(resultado["explicacoes"]).lower()
+
+
+def _write_catalog(tmp_path, data, filename="catalogo.json"):
+    catalog_path = tmp_path / filename
+    catalog_path.write_text(json.dumps(data), encoding="utf-8")
+    return catalog_path
+
+
+def _valid_minimal_product():
+    return {
+        "categoria": "bebida",
+        "preco_venda": 5.0,
+        "custo": 2.0,
+        "margem": 60.0,
+        "climas_favoraveis": ["limpo"],
+        "climas_desfavoraveis": ["chuva"],
+        "dias_favoraveis": [0, 1, 2, 3, 4, 5, 6],
+        "horarios_pico": [10, 11, 12],
+        "eventos_associados": ["evento"],
+    }
 
 
 def test_calcular_recomendacao_returns_expected_payload_structure():
@@ -259,9 +279,59 @@ def test_calcular_recomendacao_clamps_extreme_ml_prediction_and_scores():
         assert 0.0 <= item["score"] <= 100.0
 
 
-def test_calcular_recomendacao_empty_catalog_raises_index_error(tmp_path):
-    catalog_path = tmp_path / "produtos_vazios.json"
-    catalog_path.write_text(json.dumps({}), encoding="utf-8")
+def test_calcular_recomendacao_empty_catalog_raises_product_catalog_error(tmp_path):
+    catalog_path = _write_catalog(tmp_path, {}, "produtos_vazios.json")
+
+    with pytest.raises(ProductCatalogError, match="catálogo de produtos está vazio"):
+        RecommendationEngine(
+            produtos_path=str(catalog_path),
+            weather_provider=lambda: {
+                "condicao": "limpo",
+                "descricao": "céu limpo",
+                "temperatura": 25.0,
+                "umidade": 50,
+                "chuva_mm": 0.0,
+            },
+            event_provider=lambda: [],
+            nlp_classifier=lambda _nome: {"tipo": "evento", "confianca": 0.0},
+            now_provider=lambda: datetime.datetime(2026, 5, 13, 12, 0),
+            model=None,
+        )
+
+
+def test_recommendation_engine_raises_product_catalog_error_for_missing_field(tmp_path):
+    produto = _valid_minimal_product()
+    del produto["categoria"]
+    catalog_path = _write_catalog(tmp_path, {"produto teste": produto}, "sem_categoria.json")
+
+    with pytest.raises(ProductCatalogError, match="campo obrigatório ausente: categoria"):
+        RecommendationEngine(produtos_path=str(catalog_path), model=None)
+
+
+def test_recommendation_engine_raises_product_catalog_error_for_invalid_numeric_field(tmp_path):
+    produto = _valid_minimal_product()
+    produto["margem"] = "alta"
+    catalog_path = _write_catalog(tmp_path, {"produto teste": produto}, "margem_invalida.json")
+
+    with pytest.raises(ProductCatalogError, match="campo 'margem' deve ser numérico"):
+        RecommendationEngine(produtos_path=str(catalog_path), model=None)
+
+
+def test_recommendation_engine_raises_product_catalog_error_for_invalid_list_field(tmp_path):
+    produto = _valid_minimal_product()
+    produto["eventos_associados"] = "evento"
+    catalog_path = _write_catalog(tmp_path, {"produto teste": produto}, "eventos_invalidos.json")
+
+    with pytest.raises(ProductCatalogError, match="campo 'eventos_associados' deve ser uma lista"):
+        RecommendationEngine(produtos_path=str(catalog_path), model=None)
+
+
+def test_recommendation_engine_accepts_valid_minimal_catalog(tmp_path):
+    catalog_path = _write_catalog(
+        tmp_path,
+        {"produto teste": _valid_minimal_product()},
+        "catalogo_valido.json",
+    )
 
     engine = RecommendationEngine(
         produtos_path=str(catalog_path),
@@ -278,5 +348,7 @@ def test_calcular_recomendacao_empty_catalog_raises_index_error(tmp_path):
         model=None,
     )
 
-    with pytest.raises(IndexError):
-        engine.calcular_recomendacao()
+    resultado = engine.calcular_recomendacao()
+
+    assert_recommendation_payload(resultado)
+    assert resultado["recomendacao"]["produto"] == "produto teste"

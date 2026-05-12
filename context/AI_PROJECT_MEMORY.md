@@ -130,12 +130,37 @@ Common additional fields currently returned by `weather_service`:
 - `vendas_estimadas`
 - `lucro_estimado`
 
+### Product catalog contract
+
+`data/produtos.json` is loaded by `RecommendationEngine` at initialization time and must be a non-empty JSON object keyed by product name.
+
+Each product entry currently requires:
+
+- `categoria`
+- `preco_venda`
+- `custo`
+- `margem`
+- `climas_favoraveis`
+- `climas_desfavoraveis`
+- `dias_favoraveis`
+- `horarios_pico`
+- `eventos_associados`
+
+Validation rules currently enforced before scoring:
+
+- `categoria` must be a non-empty string
+- `preco_venda`, `custo`, and `margem` must be numeric
+- `climas_favoraveis`, `climas_desfavoraveis`, `dias_favoraveis`, `horarios_pico`, and `eventos_associados` must be lists
+- `horarios_pico` must not be empty because `_score_hora()` depends on at least one reference hour
+- `nota_mercado` is optional and only affects explanations
+
 ## Important Runtime Behavior
 
 - Weather service (`engines/weather_service.py`) uses Open-Meteo, caches the latest result in memory for 10 minutes, and falls back to `_previsao_simulada()` with `simulado=True` when the API fails.
 - Event discovery (`engines/event_service.py`) reads a 6-hour disk cache from `data/eventos_cache.json`; if live providers fail or return nothing, it falls back to `_eventos_fallback()` with local BH patterns such as Feira Hippie, Savassi/blocos, Expominas, and Praça Sete flow.
 - NLP model loading is optional at runtime from a stability perspective. If the Hugging Face zero-shot pipeline fails to download, load, or infer, `classificar_evento()` must return a safe neutral result like `{"tipo": "evento", "confianca": 0.0}` instead of crashing the app.
 - The XGBoost model may be missing or fail during prediction. That must not crash the UI; `_score_ml()` should continue with the neutral fallback score `0.5`.
+- Product catalog validation now happens during `RecommendationEngine` initialization. Empty or malformed catalogs raise `ProductCatalogError` with a product/field-specific message before scoring begins.
 - External APIs are unreliable during local development and CI-like environments. Future work should assume offline or DNS-restricted execution is common.
 - `app.py` must validate the recommendation payload before storing or rendering it. If invalid, it should show a user-friendly error plus development-facing field diagnostics instead of crashing with a nested-key lookup error.
 
@@ -155,6 +180,7 @@ Common additional fields currently returned by `weather_service`:
 - Deterministic recommendation tests should freeze time with `now_provider`, inject fixed event lists with `event_provider`, and use either `model=None` or a fake model object.
 - Fallback behavior has explicit regression coverage for malformed event cache reads, NLP model failures, and ML prediction failures.
 - Recommendation tests now also cover explanation semantics for rainy demand, hot sports-event demand, simulated weather warnings, unknown NLP categories on real events, extreme ML predictions, and score-boundary checks.
+- Product catalog tests now cover empty catalogs, missing required fields, invalid numeric/list fields, and a valid minimal catalog path.
 - Ranking tests should assert stable product outcomes or top-tier membership in realistic scenarios, but should avoid brittle exact-score assertions unless the inputs are fully controlled.
 - Standard final local validation command:
   - `make check`
@@ -166,7 +192,7 @@ Common additional fields currently returned by `weather_service`:
 - CI workflow:
   - `.github/workflows/check.yml`
   - runs `make check` on `push` and `pull_request` using Python 3.11
-- Expected passing test count after the latest stabilization/docs work: `24 passed`
+- Expected passing test count after the latest stabilization/docs work: `28 passed`
 
 ## Development Rules for Future Codex Tasks
 
@@ -189,6 +215,6 @@ Common additional fields currently returned by `weather_service`:
 - Event API integrations still need real-world validation against actual PBH, Sympla, and Eventbrite responses.
 - The UI still depends on a nested recommendation schema staying stable.
 - Explanation quality is still template-driven: it highlights the strongest factor and some contextual hints, but it does not yet justify every relevant factor in richer Portuguese prose.
-- `RecommendationEngine.calcular_recomendacao()` currently fails with `IndexError` if the product catalog is empty; this behavior is now documented by tests but is still a runtime risk rather than a graceful degradation path.
-- The automated test layer should still expand around malformed product attributes and more service fallback cases.
+- Catalog validation is intentionally practical rather than exhaustive; for example, it checks field presence/types but not deeper semantic ranges for every list item.
+- The automated test layer should still expand around malformed product attribute values and more service fallback cases.
 - The generated AI snapshot can become stale if not regenerated after architecture/documentation changes.

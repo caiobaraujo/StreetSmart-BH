@@ -14,7 +14,30 @@ import xgboost as xgb
 _DEFAULT_MODEL = object()
 
 
+class ProductCatalogError(ValueError):
+    """Raised when the product catalog is empty or malformed."""
+
+
 class RecommendationEngine:
+    REQUIRED_PRODUCT_FIELDS = {
+        "categoria",
+        "preco_venda",
+        "custo",
+        "margem",
+        "climas_favoraveis",
+        "climas_desfavoraveis",
+        "dias_favoraveis",
+        "horarios_pico",
+        "eventos_associados",
+    }
+    NUMERIC_PRODUCT_FIELDS = {"preco_venda", "custo", "margem"}
+    LIST_PRODUCT_FIELDS = {
+        "climas_favoraveis",
+        "climas_desfavoraveis",
+        "dias_favoraveis",
+        "horarios_pico",
+        "eventos_associados",
+    }
 
     def __init__(
         self,
@@ -42,7 +65,53 @@ class RecommendationEngine:
         if not arquivo.exists():
             raise FileNotFoundError(f"Catálogo não encontrado: {path}")
         with open(arquivo, "r", encoding="utf-8") as f:
-            return json.load(f)
+            produtos = json.load(f)
+        self._validar_catalogo_produtos(produtos)
+        return produtos
+
+    def _validar_catalogo_produtos(self, produtos):
+        if not isinstance(produtos, dict):
+            raise ProductCatalogError("O catálogo de produtos deve ser um objeto JSON com produtos nomeados.")
+        if not produtos:
+            raise ProductCatalogError("O catálogo de produtos está vazio.")
+
+        for nome_produto, atributos in produtos.items():
+            if not isinstance(atributos, dict):
+                raise ProductCatalogError(
+                    f"Produto '{nome_produto}' inválido: a configuração do produto deve ser um objeto."
+                )
+
+            faltando = sorted(self.REQUIRED_PRODUCT_FIELDS - atributos.keys())
+            if faltando:
+                raise ProductCatalogError(
+                    f"Produto '{nome_produto}' inválido: campo obrigatório ausente: {faltando[0]}"
+                )
+
+            categoria = atributos.get("categoria")
+            if not isinstance(categoria, str) or not categoria.strip():
+                raise ProductCatalogError(
+                    f"Produto '{nome_produto}' inválido: campo 'categoria' deve ser uma string não vazia."
+                )
+
+            for field in self.NUMERIC_PRODUCT_FIELDS:
+                valor = atributos.get(field)
+                if not isinstance(valor, (int, float)) or isinstance(valor, bool):
+                    raise ProductCatalogError(
+                        f"Produto '{nome_produto}' inválido: campo '{field}' deve ser numérico."
+                    )
+
+            for field in self.LIST_PRODUCT_FIELDS:
+                valor = atributos.get(field)
+                if not isinstance(valor, list):
+                    raise ProductCatalogError(
+                        f"Produto '{nome_produto}' inválido: campo '{field}' deve ser uma lista."
+                    )
+
+            horarios_pico = atributos.get("horarios_pico", [])
+            if not horarios_pico:
+                raise ProductCatalogError(
+                    f"Produto '{nome_produto}' inválido: campo 'horarios_pico' não pode ser vazio."
+                )
 
     def _carregar_modelo_ml(self):
         modelo_path = "models/xgboost_model.json"
