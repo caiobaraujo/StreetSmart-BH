@@ -1,4 +1,4 @@
-.PHONY: install train run export clean
+.PHONY: install train run export check clean
 
 install:
 	python3 -m venv venv
@@ -15,6 +15,11 @@ run:
 export:
 	. venv/bin/activate && python export_contexto.py
 	@echo "✅ Contexto exportado para context/contexto_ia.txt"
+
+check:
+	python -m py_compile app.py train_model.py engines/*.py export_contexto.py
+	venv/bin/pytest
+	python export_contexto.py --check
 
 clean:
 	rm -rf __pycache__ engines/__pycache__ models/*
