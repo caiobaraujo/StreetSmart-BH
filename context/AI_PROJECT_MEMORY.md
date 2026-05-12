@@ -18,7 +18,7 @@ This file is the canonical technical memory for future Codex/AI sessions.
 ## Current Architecture
 
 - `app.py`
-  Streamlit UI entry point. Owns session state, sidebar status display, recommendation trigger button, recommendation rendering, and feedback buttons.
+  Streamlit UI entry point. Owns session state, sidebar status display, recommendation trigger button, recommendation rendering, feedback buttons, and a lightweight feedback-history dashboard expander.
 - `engines/weather_service.py`
   Fetches Belo Horizonte weather from Open-Meteo. Keeps a short in-memory cache and falls back to simulated weather when the API is unavailable.
 - `engines/event_service.py`
@@ -28,7 +28,7 @@ This file is the canonical technical memory for future Codex/AI sessions.
 - `engines/recommendation_engine.py`
   Main orchestration layer. Loads products, events, and the XGBoost model; computes hybrid recommendation scores; returns the payload used by the UI. It now supports small constructor-level dependency injection points for testing: `weather_provider`, `event_provider`, `nlp_classifier`, `now_provider`, and `model`.
 - `engines/app_support.py`
-  Small helper module for app-facing data contracts. Handles feedback CSV persistence and the canonical recommendation payload validation helpers used by the app and tests.
+  Small helper module for app-facing data contracts. Handles feedback CSV persistence, safe feedback-history loading for the dashboard, derived historical metrics, and the canonical recommendation payload validation helpers used by the app and tests.
 - `train_model.py`
   Generates synthetic training data and trains `models/xgboost_model.json`.
 - `data/`
@@ -62,6 +62,8 @@ Canonical validation lives in `engines/app_support.py`:
 - `assert_recommendation_payload(payload) -> None`
 - `get_recommendation_contract_fields() -> dict`
 - `save_feedback_csv(resultado, status, arquivo=...) -> None`
+- `carregar_historico_feedback(path=...) -> pandas.DataFrame`
+- `calcular_metricas_historico_feedback(df) -> dict`
 
 ### `resultado["recomendacao"]`
 
@@ -130,6 +132,10 @@ Common additional fields currently returned by `weather_service`:
 - `vendas_estimadas`
 - `lucro_estimado`
 
+`carregar_historico_feedback()` uses this same schema. If `data/feedback.csv` does not exist or is malformed, it currently returns an empty DataFrame with the canonical feedback columns instead of crashing the UI.
+
+`calcular_metricas_historico_feedback()` derives dashboard metrics from this history. It treats success as `status == "vendeu_tudo"` and returns safe zero/empty defaults for empty history inputs.
+
 ### Product catalog contract
 
 `data/produtos.json` is loaded by `RecommendationEngine` at initialization time and must be a non-empty JSON object keyed by product name.
@@ -163,6 +169,7 @@ Validation rules currently enforced before scoring:
 - Product catalog validation now happens during `RecommendationEngine` initialization. Empty or malformed catalogs raise `ProductCatalogError` with a product/field-specific message before scoring begins.
 - External APIs are unreliable during local development and CI-like environments. Future work should assume offline or DNS-restricted execution is common.
 - `app.py` must validate the recommendation payload before storing or rendering it. If invalid, it should show a user-friendly error plus development-facing field diagnostics instead of crashing with a nested-key lookup error.
+- The feedback-history dashboard reads `data/feedback.csv` through `carregar_historico_feedback()` and derives aggregate insights through `calcular_metricas_historico_feedback()`. If there is no feedback file yet, or if the CSV is malformed, the dashboard shows an empty-state message rather than breaking the app.
 
 ## Current Explanation Behavior
 
@@ -181,6 +188,8 @@ Validation rules currently enforced before scoring:
 - Fallback behavior has explicit regression coverage for malformed event cache reads, NLP model failures, and ML prediction failures.
 - Recommendation tests now also cover explanation semantics for rainy demand, hot sports-event demand, simulated weather warnings, unknown NLP categories on real events, extreme ML predictions, and score-boundary checks.
 - Product catalog tests now cover empty catalogs, missing required fields, invalid numeric/list fields, and a valid minimal catalog path.
+- Feedback-history tests now cover missing files, valid CSV loading, numeric conversion, and malformed CSV fallback behavior.
+- Feedback-history metrics tests now cover empty defaults, total feedback count, product frequency, total estimated profit, overall success rate, success rate by product, and average estimated profit by product.
 - Ranking tests should assert stable product outcomes or top-tier membership in realistic scenarios, but should avoid brittle exact-score assertions unless the inputs are fully controlled.
 - Standard final local validation command:
   - `make check`
@@ -192,7 +201,7 @@ Validation rules currently enforced before scoring:
 - CI workflow:
   - `.github/workflows/check.yml`
   - runs `make check` on `push` and `pull_request` using Python 3.11
-- Expected passing test count after the latest stabilization/docs work: `28 passed`
+- Expected passing test count after the latest stabilization/docs work: `36 passed`
 
 ## Development Rules for Future Codex Tasks
 
@@ -216,5 +225,6 @@ Validation rules currently enforced before scoring:
 - The UI still depends on a nested recommendation schema staying stable.
 - Explanation quality is still template-driven: it highlights the strongest factor and some contextual hints, but it does not yet justify every relevant factor in richer Portuguese prose.
 - Catalog validation is intentionally practical rather than exhaustive; for example, it checks field presence/types but not deeper semantic ranges for every list item.
+- The dashboard metrics are feedback-based and use `lucro_estimado`; they are useful operational indicators, not confirmed accounting or realized-sales truth.
 - The automated test layer should still expand around malformed product attribute values and more service fallback cases.
 - The generated AI snapshot can become stale if not regenerated after architecture/documentation changes.

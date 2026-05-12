@@ -64,7 +64,7 @@ This file is the canonical technical memory for future Codex/AI sessions.
 ## Current Architecture
 
 - `app.py`
-  Streamlit UI entry point. Owns session state, sidebar status display, recommendation trigger button, recommendation rendering, and feedback buttons.
+  Streamlit UI entry point. Owns session state, sidebar status display, recommendation trigger button, recommendation rendering, feedback buttons, and a lightweight feedback-history dashboard expander.
 - `engines/weather_service.py`
   Fetches Belo Horizonte weather from Open-Meteo. Keeps a short in-memory cache and falls back to simulated weather when the API is unavailable.
 - `engines/event_service.py`
@@ -74,7 +74,7 @@ This file is the canonical technical memory for future Codex/AI sessions.
 - `engines/recommendation_engine.py`
   Main orchestration layer. Loads products, events, and the XGBoost model; computes hybrid recommendation scores; returns the payload used by the UI. It now supports small constructor-level dependency injection points for testing: `weather_provider`, `event_provider`, `nlp_classifier`, `now_provider`, and `model`.
 - `engines/app_support.py`
-  Small helper module for app-facing data contracts. Handles feedback CSV persistence and the canonical recommendation payload validation helpers used by the app and tests.
+  Small helper module for app-facing data contracts. Handles feedback CSV persistence, safe feedback-history loading for the dashboard, derived historical metrics, and the canonical recommendation payload validation helpers used by the app and tests.
 - `train_model.py`
   Generates synthetic training data and trains `models/xgboost_model.json`.
 - `data/`
@@ -108,6 +108,8 @@ Canonical validation lives in `engines/app_support.py`:
 - `assert_recommendation_payload(payload) -> None`
 - `get_recommendation_contract_fields() -> dict`
 - `save_feedback_csv(resultado, status, arquivo=...) -> None`
+- `carregar_historico_feedback(path=...) -> pandas.DataFrame`
+- `calcular_metricas_historico_feedback(df) -> dict`
 
 ### `resultado["recomendacao"]`
 
@@ -176,6 +178,10 @@ Common additional fields currently returned by `weather_service`:
 - `vendas_estimadas`
 - `lucro_estimado`
 
+`carregar_historico_feedback()` uses this same schema. If `data/feedback.csv` does not exist or is malformed, it currently returns an empty DataFrame with the canonical feedback columns instead of crashing the UI.
+
+`calcular_metricas_historico_feedback()` derives dashboard metrics from this history. It treats success as `status == "vendeu_tudo"` and returns safe zero/empty defaults for empty history inputs.
+
 ### Product catalog contract
 
 `data/produtos.json` is loaded by `RecommendationEngine` at initialization time and must be a non-empty JSON object keyed by product name.
@@ -209,6 +215,7 @@ Validation rules currently enforced before scoring:
 - Product catalog validation now happens during `RecommendationEngine` initialization. Empty or malformed catalogs raise `ProductCatalogError` with a product/field-specific message before scoring begins.
 - External APIs are unreliable during local development and CI-like environments. Future work should assume offline or DNS-restricted execution is common.
 - `app.py` must validate the recommendation payload before storing or rendering it. If invalid, it should show a user-friendly error plus development-facing field diagnostics instead of crashing with a nested-key lookup error.
+- The feedback-history dashboard reads `data/feedback.csv` through `carregar_historico_feedback()` and derives aggregate insights through `calcular_metricas_historico_feedback()`. If there is no feedback file yet, or if the CSV is malformed, the dashboard shows an empty-state message rather than breaking the app.
 
 ## Current Explanation Behavior
 
@@ -227,6 +234,8 @@ Validation rules currently enforced before scoring:
 - Fallback behavior has explicit regression coverage for malformed event cache reads, NLP model failures, and ML prediction failures.
 - Recommendation tests now also cover explanation semantics for rainy demand, hot sports-event demand, simulated weather warnings, unknown NLP categories on real events, extreme ML predictions, and score-boundary checks.
 - Product catalog tests now cover empty catalogs, missing required fields, invalid numeric/list fields, and a valid minimal catalog path.
+- Feedback-history tests now cover missing files, valid CSV loading, numeric conversion, and malformed CSV fallback behavior.
+- Feedback-history metrics tests now cover empty defaults, total feedback count, product frequency, total estimated profit, overall success rate, success rate by product, and average estimated profit by product.
 - Ranking tests should assert stable product outcomes or top-tier membership in realistic scenarios, but should avoid brittle exact-score assertions unless the inputs are fully controlled.
 - Standard final local validation command:
   - `make check`
@@ -238,7 +247,7 @@ Validation rules currently enforced before scoring:
 - CI workflow:
   - `.github/workflows/check.yml`
   - runs `make check` on `push` and `pull_request` using Python 3.11
-- Expected passing test count after the latest stabilization/docs work: `28 passed`
+- Expected passing test count after the latest stabilization/docs work: `36 passed`
 
 ## Development Rules for Future Codex Tasks
 
@@ -262,6 +271,7 @@ Validation rules currently enforced before scoring:
 - The UI still depends on a nested recommendation schema staying stable.
 - Explanation quality is still template-driven: it highlights the strongest factor and some contextual hints, but it does not yet justify every relevant factor in richer Portuguese prose.
 - Catalog validation is intentionally practical rather than exhaustive; for example, it checks field presence/types but not deeper semantic ranges for every list item.
+- The dashboard metrics are feedback-based and use `lucro_estimado`; they are useful operational indicators, not confirmed accounting or realized-sales truth.
 - The automated test layer should still expand around malformed product attribute values and more service fallback cases.
 - The generated AI snapshot can become stale if not regenerated after architecture/documentation changes.
 
@@ -341,7 +351,12 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parent))
 
 from engines.recommendation_engine import RecommendationEngine
-from engines.app_support import save_feedback_csv, validate_recommendation_payload
+from engines.app_support import (
+    calcular_metricas_historico_feedback,
+    carregar_historico_feedback,
+    save_feedback_csv,
+    validate_recommendation_payload,
+)
 from engines.weather_service import obter_previsao_bh
 
 
@@ -352,6 +367,59 @@ def get_engine():
 
 def _salvar_feedback(resultado, status):
     save_feedback_csv(resultado, status, Path("data/feedback.csv"))
+
+
+def _renderizar_historico_feedback():
+    with st.expander("📈 Histórico e desempenho"):
+        historico = carregar_historico_feedback(Path("data/feedback.csv"))
+        metricas = calcular_metricas_historico_feedback(historico)
+
+        if historico.empty:
+            st.info("Nenhum feedback registrado ainda.")
+            return
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total de feedbacks", str(metricas["total_feedbacks"]))
+        col2.metric("Produto mais frequente", str(metricas["produto_mais_frequente"]).title())
+        col3.metric("Lucro estimado total", f"R$ {metricas['lucro_estimado_total']:.2f}")
+        col4.metric("Taxa de sucesso", f"{metricas['taxa_sucesso']:.0%}")
+
+        contagem_status = metricas["contagem_status"]
+        if not contagem_status.empty:
+            st.subheader("📊 Resultado dos feedbacks")
+            st.bar_chart(contagem_status)
+
+        contagem_produtos = metricas["produtos_mais_frequentes"]
+        if not contagem_produtos.empty:
+            st.subheader("🏷️ Produtos mais recorrentes")
+            st.bar_chart(contagem_produtos)
+
+        lucro_medio_por_produto = metricas["lucro_medio_por_produto"].head(5)
+        if not lucro_medio_por_produto.empty:
+            st.subheader("💵 Lucro estimado médio por produto")
+            st.bar_chart(lucro_medio_por_produto)
+
+        taxa_sucesso_por_produto = metricas["taxa_sucesso_por_produto"].head(5)
+        if not taxa_sucesso_por_produto.empty:
+            st.subheader("✅ Taxa de sucesso por produto")
+            st.bar_chart(taxa_sucesso_por_produto)
+
+        colunas_tabela = [
+            "timestamp",
+            "produto",
+            "status",
+            "score",
+            "temperatura",
+            "chuva_mm",
+            "vendas_estimadas",
+            "lucro_estimado",
+        ]
+        tabela = historico.sort_values("timestamp", ascending=False).head(10).copy()
+        if "timestamp" in tabela.columns:
+            tabela["timestamp"] = tabela["timestamp"].dt.strftime("%d/%m/%Y %H:%M:%S").fillna("-")
+
+        st.subheader("🧾 Feedbacks recentes")
+        st.dataframe(tabela[colunas_tabela], use_container_width=True, hide_index=True)
 
 
 def _executar_recomendacao(engine):
@@ -495,6 +563,8 @@ if st.session_state.recomendacao_ativa and st.session_state.resultado_atual:
 else:
     st.info("👆 Clique no botão acima para receber sua recomendação personalizada!")
 
+_renderizar_historico_feedback()
+
 st.caption(f"🕒 {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')} | StreetSmart BH v3.0")
 
 
@@ -505,6 +575,8 @@ FILE: engines/app_support.py
 import csv
 import datetime
 from pathlib import Path
+
+import pandas as pd
 
 FEEDBACK_COLUMNS = [
     "timestamp",
@@ -563,6 +635,113 @@ METRIC_REQUIRED_KEYS = [
     "p_evento",
     "p_ml",
 ]
+FEEDBACK_NUMERIC_COLUMNS = [
+    "score",
+    "temperatura",
+    "chuva_mm",
+    "umidade",
+    "vendas_estimadas",
+    "lucro_estimado",
+]
+
+
+def carregar_historico_feedback(path=Path("data/feedback.csv")):
+    path = Path(path)
+    vazio = pd.DataFrame(columns=FEEDBACK_COLUMNS)
+
+    if not path.exists():
+        return vazio
+
+    try:
+        historico = pd.read_csv(path)
+    except Exception:
+        return vazio
+
+    if historico.empty:
+        return vazio
+
+    missing_columns = [column for column in FEEDBACK_COLUMNS if column not in historico.columns]
+    if missing_columns:
+        return vazio
+
+    historico = historico.loc[:, FEEDBACK_COLUMNS].copy()
+
+    historico["timestamp"] = pd.to_datetime(historico["timestamp"], errors="coerce")
+
+    for column in FEEDBACK_NUMERIC_COLUMNS:
+        historico[column] = pd.to_numeric(historico[column], errors="coerce")
+
+    return historico
+
+
+def calcular_metricas_historico_feedback(df):
+    contagem_status_vazia = pd.Series(dtype="int64")
+    produtos_frequentes_vazios = pd.Series(dtype="int64")
+    lucro_medio_vazio = pd.Series(dtype="float64")
+    taxa_sucesso_vazia = pd.Series(dtype="float64")
+
+    if df is None or df.empty:
+        return {
+            "total_feedbacks": 0,
+            "produto_mais_frequente": "-",
+            "lucro_estimado_total": 0.0,
+            "taxa_sucesso": 0.0,
+            "contagem_status": contagem_status_vazia,
+            "produtos_mais_frequentes": produtos_frequentes_vazios,
+            "lucro_medio_por_produto": lucro_medio_vazio,
+            "taxa_sucesso_por_produto": taxa_sucesso_vazia,
+        }
+
+    historico = df.copy()
+    total_feedbacks = len(historico)
+    produto_mais_frequente = "-"
+    if "produto" in historico.columns:
+        moda_produto = historico["produto"].mode()
+        if not moda_produto.empty:
+            produto_mais_frequente = moda_produto.iat[0]
+
+    lucro_estimado_total = 0.0
+    if "lucro_estimado" in historico.columns:
+        lucro_estimado_total = float(historico["lucro_estimado"].fillna(0).sum())
+
+    taxa_sucesso = 0.0
+    if "status" in historico.columns and total_feedbacks:
+        taxa_sucesso = float((historico["status"] == "vendeu_tudo").mean())
+
+    contagem_status = (
+        historico["status"].value_counts()
+        if "status" in historico.columns
+        else contagem_status_vazia
+    )
+    produtos_mais_frequentes = (
+        historico["produto"].value_counts().head(5)
+        if "produto" in historico.columns
+        else produtos_frequentes_vazios
+    )
+    lucro_medio_por_produto = (
+        historico.groupby("produto")["lucro_estimado"].mean().sort_values(ascending=False)
+        if {"produto", "lucro_estimado"}.issubset(historico.columns)
+        else lucro_medio_vazio
+    )
+    taxa_sucesso_por_produto = (
+        historico.assign(_sucesso=historico["status"] == "vendeu_tudo")
+        .groupby("produto")["_sucesso"]
+        .mean()
+        .sort_values(ascending=False)
+        if {"produto", "status"}.issubset(historico.columns)
+        else taxa_sucesso_vazia
+    )
+
+    return {
+        "total_feedbacks": total_feedbacks,
+        "produto_mais_frequente": produto_mais_frequente,
+        "lucro_estimado_total": lucro_estimado_total,
+        "taxa_sucesso": taxa_sucesso,
+        "contagem_status": contagem_status,
+        "produtos_mais_frequentes": produtos_mais_frequentes,
+        "lucro_medio_por_produto": lucro_medio_por_produto,
+        "taxa_sucesso_por_produto": taxa_sucesso_por_produto,
+    }
 
 
 def build_feedback_row(resultado, status):
@@ -1978,9 +2157,13 @@ FILE: tests/test_app_support.py
 
 import csv
 
+import pandas as pd
+
 from engines.app_support import (
     FEEDBACK_COLUMNS,
     assert_recommendation_payload,
+    calcular_metricas_historico_feedback,
+    carregar_historico_feedback,
     get_recommendation_contract_fields,
     is_valid_recommendation_result,
     save_feedback_csv,
@@ -2037,6 +2220,115 @@ def test_save_feedback_csv_creates_file_with_expected_columns(tmp_path):
     assert len(rows) == 1
     assert rows[0]["produto"] == "agua mineral gelada 500ml"
     assert rows[0]["status"] == "vendeu_tudo"
+
+
+def test_carregar_historico_feedback_returns_empty_dataframe_when_file_is_missing(tmp_path):
+    arquivo = tmp_path / "data" / "feedback.csv"
+
+    historico = carregar_historico_feedback(arquivo)
+
+    assert list(historico.columns) == FEEDBACK_COLUMNS
+    assert historico.empty is True
+
+
+def test_carregar_historico_feedback_loads_valid_csv_and_converts_numeric_columns(tmp_path):
+    arquivo = tmp_path / "data" / "feedback.csv"
+    save_feedback_csv(_sample_result(), "vendeu_tudo", arquivo=arquivo)
+
+    historico = carregar_historico_feedback(arquivo)
+
+    assert len(historico) == 1
+    assert historico.loc[0, "produto"] == "agua mineral gelada 500ml"
+    assert pd.api.types.is_datetime64_any_dtype(historico["timestamp"]) is True
+    assert pd.api.types.is_numeric_dtype(historico["score"]) is True
+    assert pd.api.types.is_numeric_dtype(historico["lucro_estimado"]) is True
+
+
+def test_carregar_historico_feedback_handles_malformed_csv_safely(tmp_path):
+    arquivo = tmp_path / "data" / "feedback.csv"
+    arquivo.parent.mkdir(parents=True, exist_ok=True)
+    arquivo.write_text("coluna_errada\nvalor\n", encoding="utf-8")
+
+    historico = carregar_historico_feedback(arquivo)
+
+    assert list(historico.columns) == FEEDBACK_COLUMNS
+    assert historico.empty is True
+
+
+def test_calcular_metricas_historico_feedback_returns_safe_defaults_for_empty_dataframe():
+    metricas = calcular_metricas_historico_feedback(pd.DataFrame(columns=FEEDBACK_COLUMNS))
+
+    assert metricas["total_feedbacks"] == 0
+    assert metricas["produto_mais_frequente"] == "-"
+    assert metricas["lucro_estimado_total"] == 0.0
+    assert metricas["taxa_sucesso"] == 0.0
+    assert metricas["contagem_status"].empty is True
+    assert metricas["produtos_mais_frequentes"].empty is True
+    assert metricas["lucro_medio_por_produto"].empty is True
+    assert metricas["taxa_sucesso_por_produto"].empty is True
+
+
+def test_calcular_metricas_historico_feedback_calcula_totais_e_produto_mais_frequente():
+    df = pd.DataFrame(
+        [
+            {"produto": "agua", "status": "vendeu_tudo", "lucro_estimado": 100.0},
+            {"produto": "agua", "status": "nao_vendeu", "lucro_estimado": 20.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 60.0},
+        ]
+    )
+
+    metricas = calcular_metricas_historico_feedback(df)
+
+    assert metricas["total_feedbacks"] == 3
+    assert metricas["produto_mais_frequente"] == "agua"
+    assert metricas["lucro_estimado_total"] == 180.0
+
+
+def test_calcular_metricas_historico_feedback_calcula_taxa_sucesso_corretamente():
+    df = pd.DataFrame(
+        [
+            {"produto": "agua", "status": "vendeu_tudo", "lucro_estimado": 100.0},
+            {"produto": "agua", "status": "nao_vendeu", "lucro_estimado": 20.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 60.0},
+            {"produto": "cafe", "status": "vendeu_parcial", "lucro_estimado": 40.0},
+        ]
+    )
+
+    metricas = calcular_metricas_historico_feedback(df)
+
+    assert metricas["taxa_sucesso"] == 0.5
+
+
+def test_calcular_metricas_historico_feedback_calcula_taxa_sucesso_por_produto():
+    df = pd.DataFrame(
+        [
+            {"produto": "agua", "status": "vendeu_tudo", "lucro_estimado": 100.0},
+            {"produto": "agua", "status": "nao_vendeu", "lucro_estimado": 20.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 60.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 80.0},
+        ]
+    )
+
+    metricas = calcular_metricas_historico_feedback(df)
+
+    assert metricas["taxa_sucesso_por_produto"]["agua"] == 0.5
+    assert metricas["taxa_sucesso_por_produto"]["cafe"] == 1.0
+
+
+def test_calcular_metricas_historico_feedback_calcula_lucro_medio_por_produto():
+    df = pd.DataFrame(
+        [
+            {"produto": "agua", "status": "vendeu_tudo", "lucro_estimado": 100.0},
+            {"produto": "agua", "status": "nao_vendeu", "lucro_estimado": 20.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 60.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 80.0},
+        ]
+    )
+
+    metricas = calcular_metricas_historico_feedback(df)
+
+    assert metricas["lucro_medio_por_produto"]["agua"] == 60.0
+    assert metricas["lucro_medio_por_produto"]["cafe"] == 70.0
 
 
 def test_is_valid_recommendation_result_accepts_expected_schema():

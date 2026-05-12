@@ -1,8 +1,12 @@
 import csv
 
+import pandas as pd
+
 from engines.app_support import (
     FEEDBACK_COLUMNS,
     assert_recommendation_payload,
+    calcular_metricas_historico_feedback,
+    carregar_historico_feedback,
     get_recommendation_contract_fields,
     is_valid_recommendation_result,
     save_feedback_csv,
@@ -59,6 +63,115 @@ def test_save_feedback_csv_creates_file_with_expected_columns(tmp_path):
     assert len(rows) == 1
     assert rows[0]["produto"] == "agua mineral gelada 500ml"
     assert rows[0]["status"] == "vendeu_tudo"
+
+
+def test_carregar_historico_feedback_returns_empty_dataframe_when_file_is_missing(tmp_path):
+    arquivo = tmp_path / "data" / "feedback.csv"
+
+    historico = carregar_historico_feedback(arquivo)
+
+    assert list(historico.columns) == FEEDBACK_COLUMNS
+    assert historico.empty is True
+
+
+def test_carregar_historico_feedback_loads_valid_csv_and_converts_numeric_columns(tmp_path):
+    arquivo = tmp_path / "data" / "feedback.csv"
+    save_feedback_csv(_sample_result(), "vendeu_tudo", arquivo=arquivo)
+
+    historico = carregar_historico_feedback(arquivo)
+
+    assert len(historico) == 1
+    assert historico.loc[0, "produto"] == "agua mineral gelada 500ml"
+    assert pd.api.types.is_datetime64_any_dtype(historico["timestamp"]) is True
+    assert pd.api.types.is_numeric_dtype(historico["score"]) is True
+    assert pd.api.types.is_numeric_dtype(historico["lucro_estimado"]) is True
+
+
+def test_carregar_historico_feedback_handles_malformed_csv_safely(tmp_path):
+    arquivo = tmp_path / "data" / "feedback.csv"
+    arquivo.parent.mkdir(parents=True, exist_ok=True)
+    arquivo.write_text("coluna_errada\nvalor\n", encoding="utf-8")
+
+    historico = carregar_historico_feedback(arquivo)
+
+    assert list(historico.columns) == FEEDBACK_COLUMNS
+    assert historico.empty is True
+
+
+def test_calcular_metricas_historico_feedback_returns_safe_defaults_for_empty_dataframe():
+    metricas = calcular_metricas_historico_feedback(pd.DataFrame(columns=FEEDBACK_COLUMNS))
+
+    assert metricas["total_feedbacks"] == 0
+    assert metricas["produto_mais_frequente"] == "-"
+    assert metricas["lucro_estimado_total"] == 0.0
+    assert metricas["taxa_sucesso"] == 0.0
+    assert metricas["contagem_status"].empty is True
+    assert metricas["produtos_mais_frequentes"].empty is True
+    assert metricas["lucro_medio_por_produto"].empty is True
+    assert metricas["taxa_sucesso_por_produto"].empty is True
+
+
+def test_calcular_metricas_historico_feedback_calcula_totais_e_produto_mais_frequente():
+    df = pd.DataFrame(
+        [
+            {"produto": "agua", "status": "vendeu_tudo", "lucro_estimado": 100.0},
+            {"produto": "agua", "status": "nao_vendeu", "lucro_estimado": 20.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 60.0},
+        ]
+    )
+
+    metricas = calcular_metricas_historico_feedback(df)
+
+    assert metricas["total_feedbacks"] == 3
+    assert metricas["produto_mais_frequente"] == "agua"
+    assert metricas["lucro_estimado_total"] == 180.0
+
+
+def test_calcular_metricas_historico_feedback_calcula_taxa_sucesso_corretamente():
+    df = pd.DataFrame(
+        [
+            {"produto": "agua", "status": "vendeu_tudo", "lucro_estimado": 100.0},
+            {"produto": "agua", "status": "nao_vendeu", "lucro_estimado": 20.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 60.0},
+            {"produto": "cafe", "status": "vendeu_parcial", "lucro_estimado": 40.0},
+        ]
+    )
+
+    metricas = calcular_metricas_historico_feedback(df)
+
+    assert metricas["taxa_sucesso"] == 0.5
+
+
+def test_calcular_metricas_historico_feedback_calcula_taxa_sucesso_por_produto():
+    df = pd.DataFrame(
+        [
+            {"produto": "agua", "status": "vendeu_tudo", "lucro_estimado": 100.0},
+            {"produto": "agua", "status": "nao_vendeu", "lucro_estimado": 20.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 60.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 80.0},
+        ]
+    )
+
+    metricas = calcular_metricas_historico_feedback(df)
+
+    assert metricas["taxa_sucesso_por_produto"]["agua"] == 0.5
+    assert metricas["taxa_sucesso_por_produto"]["cafe"] == 1.0
+
+
+def test_calcular_metricas_historico_feedback_calcula_lucro_medio_por_produto():
+    df = pd.DataFrame(
+        [
+            {"produto": "agua", "status": "vendeu_tudo", "lucro_estimado": 100.0},
+            {"produto": "agua", "status": "nao_vendeu", "lucro_estimado": 20.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 60.0},
+            {"produto": "cafe", "status": "vendeu_tudo", "lucro_estimado": 80.0},
+        ]
+    )
+
+    metricas = calcular_metricas_historico_feedback(df)
+
+    assert metricas["lucro_medio_por_produto"]["agua"] == 60.0
+    assert metricas["lucro_medio_por_produto"]["cafe"] == 70.0
 
 
 def test_is_valid_recommendation_result_accepts_expected_schema():
