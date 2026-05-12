@@ -24,6 +24,7 @@ Included files:
   - export_contexto.py
   - requirements.txt
   - .env.example
+  - .github/workflows/check.yml
   - .gitignore
   - Makefile
   - data/produtos.json
@@ -184,21 +185,34 @@ Common additional fields currently returned by `weather_service`:
 - External APIs are unreliable during local development and CI-like environments. Future work should assume offline or DNS-restricted execution is common.
 - `app.py` must validate the recommendation payload before storing or rendering it. If invalid, it should show a user-friendly error plus development-facing field diagnostics instead of crashing with a nested-key lookup error.
 
+## Current Explanation Behavior
+
+- `RecommendationEngine._gerar_explicacoes()` always starts with a "fator decisivo" line derived from the highest metric among `p_clima`, `p_data`, `p_hora`, `p_evento`, and `p_ml`.
+- If the decisive factor is climate, the explanation includes `clima["descricao"]`, so scenario text such as `chuva moderada` or `céu limpo` can surface directly.
+- If `clima["simulado"]` is truthy, the engine currently adds an explicit `Dados climáticos SIMULADOS` warning to `explicacoes`.
+- If there are real events (that is, event entries whose `fonte` is not `padrao_bh`), the engine appends a compact `Eventos: ...` line listing up to three event names.
+- If the selected product has `nota_mercado`, that note is appended as a final explanation. This is where phrases like `dias chuvosos`, `eventos esportivos`, or `dias quentes` currently come from.
+- Explanations currently do not provide a full natural-language decomposition of all score components; they surface the top factor plus optional weather/event/product-note context.
+
 ## Testing Strategy
 
 - Unit tests must avoid live weather/event APIs, Hugging Face downloads, and network access.
 - `RecommendationEngine` should be tested with injected fake providers rather than with global monkeypatching whenever practical.
 - Deterministic recommendation tests should freeze time with `now_provider`, inject fixed event lists with `event_provider`, and use either `model=None` or a fake model object.
 - Fallback behavior has explicit regression coverage for malformed event cache reads, NLP model failures, and ML prediction failures.
+- Recommendation tests now also cover explanation semantics for rainy demand, hot sports-event demand, simulated weather warnings, unknown NLP categories on real events, extreme ML predictions, and score-boundary checks.
 - Ranking tests should assert stable product outcomes or top-tier membership in realistic scenarios, but should avoid brittle exact-score assertions unless the inputs are fully controlled.
 - Standard final local validation command:
   - `make check`
 - Supporting commands:
   - `python -m py_compile app.py train_model.py engines/*.py export_contexto.py`
-  - `venv/bin/pytest`
+  - `python -m pytest`
   - `python export_contexto.py --check`
   - `python export_contexto.py`
-- Expected passing test count after the latest stabilization/docs work: `20 passed`
+- CI workflow:
+  - `.github/workflows/check.yml`
+  - runs `make check` on `push` and `pull_request` using Python 3.11
+- Expected passing test count after the latest stabilization/docs work: `24 passed`
 
 ## Development Rules for Future Codex Tasks
 
@@ -207,18 +221,22 @@ Common additional fields currently returned by `weather_service`:
 - Keep changes small, local, and easy to review.
 - Preserve Portuguese UX copy unless the task explicitly asks for language changes.
 - Prefer robust fallbacks over hard crashes.
+- Keep tests and validation offline-safe: no real external API calls, no required secrets, and no Hugging Face model downloads during test execution.
 - When changing architecture, core behavior, or data contracts, update this file in the same task.
 - If the recommendation payload changes, update `engines/app_support.py`, the related tests, and this memory file together in the same change.
 - If context export behavior changes, review `export_contexto.py`, its tests, and regenerate `context/contexto_ia.txt` intentionally.
 - Treat `context/contexto_ia.txt` as a committed generated artifact: edit the script or source docs, then regenerate; do not hand-edit the snapshot.
 - After changing architecture, docs, contracts, or core behavior, run `python export_contexto.py` and then `make check` before finishing the task.
+- `make check` should pass locally before pushing, because CI runs the same command remotely.
 
 ## Current Known Risks / TODOs
 
 - NLP startup latency is still high because `facebook/bart-large-mnli` may need network access or a large local cache.
 - Event API integrations still need real-world validation against actual PBH, Sympla, and Eventbrite responses.
 - The UI still depends on a nested recommendation schema staying stable.
-- The automated test layer is still small and should expand around explanation generation, score composition boundaries, and more service fallback cases.
+- Explanation quality is still template-driven: it highlights the strongest factor and some contextual hints, but it does not yet justify every relevant factor in richer Portuguese prose.
+- `RecommendationEngine.calcular_recomendacao()` currently fails with `IndexError` if the product catalog is empty; this behavior is now documented by tests but is still a runtime risk rather than a graceful degradation path.
+- The automated test layer should still expand around malformed product attributes and more service fallback cases.
 - The generated AI snapshot can become stale if not regenerated after architecture/documentation changes.
 
 
@@ -1058,6 +1076,36 @@ SYMPLA_TOKEN=
 EVENTBRITE_TOKEN=   
 
 ================================================================================
+FILE: .github/workflows/check.yml
+================================================================================
+
+name: Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Run validation
+        run: make check
+
+
+================================================================================
 FILE: .gitignore
 ================================================================================
 
@@ -1093,7 +1141,7 @@ export:
 
 check:
 	python -m py_compile app.py train_model.py engines/*.py export_contexto.py
-	venv/bin/pytest
+	python -m pytest
 	python export_contexto.py --check
 
 clean:
@@ -2097,6 +2145,9 @@ FILE: tests/test_recommendation_engine.py
 ================================================================================
 
 import datetime
+import json
+
+import pytest
 
 from engines.app_support import assert_recommendation_payload, validate_recommendation_payload
 from engines.recommendation_engine import RecommendationEngine
@@ -2105,6 +2156,11 @@ from engines.recommendation_engine import RecommendationEngine
 class ExplodingModel:
     def predict(self, _matrix):
         raise RuntimeError("simulated prediction failure")
+
+
+class HighConfidenceModel:
+    def predict(self, _matrix):
+        return [500.0]
 
 
 def _engine_for_test(*, now_dt, events=None, model=None, weather=None, nlp_result=None):
@@ -2128,6 +2184,10 @@ def _engine_for_test(*, now_dt, events=None, model=None, weather=None, nlp_resul
         now_provider=lambda: now_dt,
         model=model,
     )
+
+
+def _joined_explanations(resultado):
+    return " ".join(resultado["explicacoes"]).lower()
 
 
 def test_calcular_recomendacao_returns_expected_payload_structure():
@@ -2178,6 +2238,8 @@ def test_calcular_recomendacao_returns_expected_payload_structure():
     }.issubset(recomendacao.keys())
     assert isinstance(resultado["alternativas"], list)
     assert isinstance(resultado["explicacoes"], list)
+    assert resultado["explicacoes"]
+    assert all(isinstance(explicacao, str) and explicacao.strip() for explicacao in resultado["explicacoes"])
     assert resultado["hora_consulta"] == "14:00"
     assert resultado["data_consulta"] == "13/05/2026"
 
@@ -2197,7 +2259,9 @@ def test_calcular_recomendacao_prefers_rain_products_in_rainy_scenario():
     )
 
     resultado = engine.calcular_recomendacao()
+    assert_recommendation_payload(resultado)
     produtos_top3 = [resultado["recomendacao"]["produto"], *[alt["produto"] for alt in resultado["alternativas"]]]
+    explicacoes = _joined_explanations(resultado)
 
     assert resultado["recomendacao"]["produto"] in {
         "guarda-chuva compacto",
@@ -2207,6 +2271,8 @@ def test_calcular_recomendacao_prefers_rain_products_in_rainy_scenario():
         produto in {"guarda-chuva compacto", "capa de chuva descartavel"}
         for produto in produtos_top3
     )
+    assert any(palavra in explicacoes for palavra in ("chuva", "clim", "chuvoso", "guarda-chuva"))
+    assert "eventos:" not in explicacoes
 
 
 def test_calcular_recomendacao_prefers_cold_drink_for_hot_sports_scenario():
@@ -2232,10 +2298,13 @@ def test_calcular_recomendacao_prefers_cold_drink_for_hot_sports_scenario():
     )
 
     resultado = engine.calcular_recomendacao()
+    assert_recommendation_payload(resultado)
     produtos_top3 = [resultado["recomendacao"]["produto"], *[alt["produto"] for alt in resultado["alternativas"]]]
+    explicacoes = _joined_explanations(resultado)
 
     assert resultado["recomendacao"]["produto"] == "agua mineral gelada 500ml"
     assert "agua mineral gelada 500ml" in produtos_top3
+    assert any(palavra in explicacoes for palavra in ("evento", "corrida", "quente", "esportiv"))
 
 
 def test_calcular_recomendacao_returns_payload_when_ml_prediction_fails():
@@ -2261,6 +2330,102 @@ def test_calcular_recomendacao_returns_payload_when_ml_prediction_fails():
         "guarda-chuva compacto",
         "capa de chuva descartavel",
     }
+
+
+def test_calcular_recomendacao_surfaces_simulated_weather_in_explanations():
+    engine = _engine_for_test(
+        now_dt=datetime.datetime(2026, 5, 11, 17, 0),
+        events=[],
+        model=None,
+        weather={
+            "condicao": "chuva",
+            "descricao": "chuva moderada (simulada)",
+            "temperatura": 21.0,
+            "umidade": 88,
+            "chuva_mm": 8.0,
+            "simulado": True,
+        },
+    )
+
+    resultado = engine.calcular_recomendacao()
+
+    assert_recommendation_payload(resultado)
+    assert any("simulad" in explicacao.lower() for explicacao in resultado["explicacoes"])
+
+
+def test_calcular_recomendacao_handles_unknown_nlp_category_with_real_event():
+    engine = _engine_for_test(
+        now_dt=datetime.datetime(2026, 5, 13, 15, 0),
+        events=[
+            {
+                "nome": "Encontro Urbano na Savassi",
+                "tipo": "evento",
+                "fonte": "Sympla",
+                "data": "2026-05-13",
+            }
+        ],
+        model=None,
+        weather={
+            "condicao": "limpo",
+            "descricao": "céu limpo",
+            "temperatura": 30.0,
+            "umidade": 45,
+            "chuva_mm": 0.0,
+        },
+        nlp_result={"tipo": "categoria_desconhecida", "confianca": 0.12},
+    )
+
+    resultado = engine.calcular_recomendacao()
+
+    assert_recommendation_payload(resultado)
+    assert resultado["eventos"][0]["tipo_nlp"] == "categoria_desconhecida"
+    assert any("eventos:" in explicacao.lower() for explicacao in resultado["explicacoes"])
+
+
+def test_calcular_recomendacao_clamps_extreme_ml_prediction_and_scores():
+    engine = _engine_for_test(
+        now_dt=datetime.datetime(2026, 5, 13, 14, 0),
+        events=[],
+        model=HighConfidenceModel(),
+        weather={
+            "condicao": "limpo",
+            "descricao": "céu limpo",
+            "temperatura": 32.0,
+            "umidade": 42,
+            "chuva_mm": 0.0,
+        },
+    )
+
+    resultado = engine.calcular_recomendacao()
+
+    assert_recommendation_payload(resultado)
+    assert resultado["recomendacao"]["metricas"]["p_ml"] == 1.0
+
+    for item in [resultado["recomendacao"], *resultado["alternativas"]]:
+        assert 0.0 <= item["score"] <= 100.0
+
+
+def test_calcular_recomendacao_empty_catalog_raises_index_error(tmp_path):
+    catalog_path = tmp_path / "produtos_vazios.json"
+    catalog_path.write_text(json.dumps({}), encoding="utf-8")
+
+    engine = RecommendationEngine(
+        produtos_path=str(catalog_path),
+        weather_provider=lambda: {
+            "condicao": "limpo",
+            "descricao": "céu limpo",
+            "temperatura": 25.0,
+            "umidade": 50,
+            "chuva_mm": 0.0,
+        },
+        event_provider=lambda: [],
+        nlp_classifier=lambda _nome: {"tipo": "evento", "confianca": 0.0},
+        now_provider=lambda: datetime.datetime(2026, 5, 13, 12, 0),
+        model=None,
+    )
+
+    with pytest.raises(IndexError):
+        engine.calcular_recomendacao()
 
 
 ================================================================================

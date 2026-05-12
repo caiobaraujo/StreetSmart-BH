@@ -139,21 +139,34 @@ Common additional fields currently returned by `weather_service`:
 - External APIs are unreliable during local development and CI-like environments. Future work should assume offline or DNS-restricted execution is common.
 - `app.py` must validate the recommendation payload before storing or rendering it. If invalid, it should show a user-friendly error plus development-facing field diagnostics instead of crashing with a nested-key lookup error.
 
+## Current Explanation Behavior
+
+- `RecommendationEngine._gerar_explicacoes()` always starts with a "fator decisivo" line derived from the highest metric among `p_clima`, `p_data`, `p_hora`, `p_evento`, and `p_ml`.
+- If the decisive factor is climate, the explanation includes `clima["descricao"]`, so scenario text such as `chuva moderada` or `céu limpo` can surface directly.
+- If `clima["simulado"]` is truthy, the engine currently adds an explicit `Dados climáticos SIMULADOS` warning to `explicacoes`.
+- If there are real events (that is, event entries whose `fonte` is not `padrao_bh`), the engine appends a compact `Eventos: ...` line listing up to three event names.
+- If the selected product has `nota_mercado`, that note is appended as a final explanation. This is where phrases like `dias chuvosos`, `eventos esportivos`, or `dias quentes` currently come from.
+- Explanations currently do not provide a full natural-language decomposition of all score components; they surface the top factor plus optional weather/event/product-note context.
+
 ## Testing Strategy
 
 - Unit tests must avoid live weather/event APIs, Hugging Face downloads, and network access.
 - `RecommendationEngine` should be tested with injected fake providers rather than with global monkeypatching whenever practical.
 - Deterministic recommendation tests should freeze time with `now_provider`, inject fixed event lists with `event_provider`, and use either `model=None` or a fake model object.
 - Fallback behavior has explicit regression coverage for malformed event cache reads, NLP model failures, and ML prediction failures.
+- Recommendation tests now also cover explanation semantics for rainy demand, hot sports-event demand, simulated weather warnings, unknown NLP categories on real events, extreme ML predictions, and score-boundary checks.
 - Ranking tests should assert stable product outcomes or top-tier membership in realistic scenarios, but should avoid brittle exact-score assertions unless the inputs are fully controlled.
 - Standard final local validation command:
   - `make check`
 - Supporting commands:
   - `python -m py_compile app.py train_model.py engines/*.py export_contexto.py`
-  - `venv/bin/pytest`
+  - `python -m pytest`
   - `python export_contexto.py --check`
   - `python export_contexto.py`
-- Expected passing test count after the latest stabilization/docs work: `20 passed`
+- CI workflow:
+  - `.github/workflows/check.yml`
+  - runs `make check` on `push` and `pull_request` using Python 3.11
+- Expected passing test count after the latest stabilization/docs work: `24 passed`
 
 ## Development Rules for Future Codex Tasks
 
@@ -162,16 +175,20 @@ Common additional fields currently returned by `weather_service`:
 - Keep changes small, local, and easy to review.
 - Preserve Portuguese UX copy unless the task explicitly asks for language changes.
 - Prefer robust fallbacks over hard crashes.
+- Keep tests and validation offline-safe: no real external API calls, no required secrets, and no Hugging Face model downloads during test execution.
 - When changing architecture, core behavior, or data contracts, update this file in the same task.
 - If the recommendation payload changes, update `engines/app_support.py`, the related tests, and this memory file together in the same change.
 - If context export behavior changes, review `export_contexto.py`, its tests, and regenerate `context/contexto_ia.txt` intentionally.
 - Treat `context/contexto_ia.txt` as a committed generated artifact: edit the script or source docs, then regenerate; do not hand-edit the snapshot.
 - After changing architecture, docs, contracts, or core behavior, run `python export_contexto.py` and then `make check` before finishing the task.
+- `make check` should pass locally before pushing, because CI runs the same command remotely.
 
 ## Current Known Risks / TODOs
 
 - NLP startup latency is still high because `facebook/bart-large-mnli` may need network access or a large local cache.
 - Event API integrations still need real-world validation against actual PBH, Sympla, and Eventbrite responses.
 - The UI still depends on a nested recommendation schema staying stable.
-- The automated test layer is still small and should expand around explanation generation, score composition boundaries, and more service fallback cases.
+- Explanation quality is still template-driven: it highlights the strongest factor and some contextual hints, but it does not yet justify every relevant factor in richer Portuguese prose.
+- `RecommendationEngine.calcular_recomendacao()` currently fails with `IndexError` if the product catalog is empty; this behavior is now documented by tests but is still a runtime risk rather than a graceful degradation path.
+- The automated test layer should still expand around malformed product attributes and more service fallback cases.
 - The generated AI snapshot can become stale if not regenerated after architecture/documentation changes.

@@ -18,7 +18,7 @@ export:
 
 check:
 	python -m py_compile app.py train_model.py engines/*.py export_contexto.py
-	venv/bin/pytest
+	python -m pytest
 	python export_contexto.py --check
 
 clean:
